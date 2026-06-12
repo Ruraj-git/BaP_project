@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Driver analysis for daily BaP: TreeSHAP (native XGBoost) + the orographic
+control / spatial-transferability angle.
+
+Produces:
+  - shap_importance.png        mean |SHAP| per feature, coloured by group
+  - shap_dependence.png        SHAP dependence for the key physical drivers
+                               (valley TPI, boundary layer, heating, ventilation,
+                               temperature, season) -> the mechanistic story
+  - loso_topography.png        per-station LOSO bias / skill vs. topography
+                               (how orographically atypical sites are harder)
+SHAP values are on the model's target scale, ln(1+BaP); positive = higher BaP.
+"""
+
+import os
+import sys
+import numpy as np
+import pandas as pd
+import xgboost as xgb
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.append(REPO_ROOT)
+sys.path.append(os.path.join(REPO_ROOT, "scripts"))
+import config  # noqa: E402
+import validate_model as vm  # noqa: E402
+from make_plots import feature_group  # reuse the feature->group mapping  # noqa: E402
+
+VAL_DIR = config.VALIDATION_DIR
+PLOT_DIR = config.PLOTS_DIR
+sns.set_theme(style="whitegrid", context="notebook")
+
+DRIVERS = ["tpi_broad", "hpbl_min", "heating_degree_hours", "vrate_min",
+           "t_mean", "doy_cos"]
+DRIVER_LABELS = {
+    "tpi_broad": "Topographic position (valley → ridge) [m]",
+    "hpbl_min": "Min. boundary-layer height [m]",
+    "heating_degree_hours": "Heating-degree hours",
+    "vrate_min": "Min. ventilation rate",
+    "t_mean": "Daily mean temperature [°C]",
+    "doy_cos": "Season (cos day-of-year; winter→+1)",
+}
+
+
+def fit_and_shap():
+    df = vm.load_dataset().reset_index(drop=True)
+    feats = vm.resolve_features(df)
+    X = df[feats].copy()
+    y = np.log1p(df["bap"])
+    w = 1.0 / (df["bap"] + 0.5)
+    model = xgb.XGBRegressor(**config.MODEL_PARAMS)
+    model.fit(X, y, sample_weight=w)
+    dmat = xgb.DMatrix(X, feature_names=feats)
+    contribs = model.get_booster().predict(dmat, pred_contribs=True)  # (n, k+1)
+    shap = pd.DataFrame(contribs[:, :-1], columns=feats)
+    return df, X, shap, feats
+
+
+def plot_shap_importance(shap, feats, top=22):
+    imp = shap.abs().mean().sort_values(ascending=False).head(top).iloc[::-1]
+    groups = ["Proxy (same-day PM/NO₂)", "Concentration lag", "Meteorology (base)",
+              "Meteorology (derived)", "Calendar/season", "Terrain (DEM)",
+              "Traffic", "Emission (bottom-up)", "Station typology"]
+    palette = dict(zip(groups, sns.color_palette("tab10", len(groups))))
+    colors = [palette[feature_group(f)] for f in imp.index]
+    fig, ax = plt.subplots(figsize=(9, max(6, 0.32 * len(imp))))
+    ax.barh(imp.index, imp.values, color=colors)
+    ax.set_xlabel("mean |SHAP|  (effect on ln(1+BaP))")
+    ax.set_title("SHAP feature importance (TreeSHAP)")
+    present = [g for g in groups if g in {feature_group(f) for f in imp.index}]
+    handles = [plt.Rectangle((0, 0), 1, 1, color=palette[g]) for g in present]
+    ax.legend(handles, present, fontsize=8, loc="lower right", title="Feature group")
+    fig.tight_layout()
+    fig.savefig(os.path.join(PLOT_DIR, "shap_importance.png"), dpi=140)
+    plt.close(fig)
+    print("📑 shap_importance.png")
+
+
+def plot_shap_dependence(X, shap):
+    fig, axes = plt.subplots(2, 3, figsize=(15, 8))
+    for ax, f in zip(axes.ravel(), DRIVERS):
+        x = X[f].values
+        s = shap[f].values
+        ok = np.isfinite(x) & np.isfinite(s)
+        x, s = x[ok], s[ok]
+        ax.scatter(x, s, s=6, alpha=0.15, color="#1f77b4", edgecolors="none")
+        # binned-median trend (quantile bins)
+        try:
+            q = pd.qcut(x, 20, duplicates="drop")
+            tr = pd.DataFrame({"x": x, "s": s, "q": q}).groupby("q", observed=True)
+            ax.plot(tr["x"].median(), tr["s"].median(), "-", color="#d62728", lw=2)
+        except ValueError:
+            pass
+        ax.axhline(0, color="k", lw=0.6)
+        ax.set_xlabel(DRIVER_LABELS.get(f, f), fontsize=9)
+        ax.set_ylabel("SHAP (ln(1+BaP))", fontsize=9)
+    fig.suptitle("SHAP dependence: physical drivers of daily BaP "
+                 "(positive = higher BaP)", fontsize=13)
+    fig.tight_layout(rect=[0, 0, 1, 0.97])
+    fig.savefig(os.path.join(PLOT_DIR, "shap_dependence.png"), dpi=140)
+    plt.close(fig)
+    print("📈 shap_dependence.png")
+
+
+def plot_loso_topography():
+    loso = pd.read_csv(os.path.join(VAL_DIR, "loso_per_station_pearson.csv"))
+    cov = pd.read_csv(os.path.join(config.COVARIATES_DIR, "station_covariates.csv"))
+    df = loso.merge(cov, on="eoi", how="left")
+    df["tpi_distinct"] = (df["tpi_broad"] - df["tpi_broad"].mean()).abs()
+
+    types = sorted(df["typ"].unique())
+    pal = dict(zip(types, sns.color_palette("tab10", len(types))))
+
+    panels = [
+        ("elev_mean", "MBE", "Elevation [m]", "LOSO bias MBE [ng/m³]"),
+        ("tpi_broad", "MBE", "Topographic position (valley→ridge) [m]", "LOSO bias MBE [ng/m³]"),
+        ("tpi_distinct", "R2", "Topographic distinctiveness |TPI − mean| [m]", "LOSO r²"),
+    ]
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+    for ax, (xc, yc, xl, yl) in zip(axes, panels):
+        for t in types:
+            g = df[df["typ"] == t]
+            ax.scatter(g[xc], g[yc], s=55, color=pal[t], label=t, edgecolors="k", linewidths=0.4)
+        for _, r in df.iterrows():
+            ax.annotate(r["eoi"], (r[xc], r[yc]), fontsize=6, alpha=0.7,
+                        xytext=(3, 3), textcoords="offset points")
+        if yc == "MBE":
+            ax.axhline(0, color="k", lw=0.8, ls="--")
+        ax.set_xlabel(xl); ax.set_ylabel(yl)
+    axes[0].legend(title="type", fontsize=8, ncol=2)
+    fig.suptitle("Per-station LOSO performance vs. topography "
+                 "(orographically atypical sites are harder)", fontsize=13)
+    fig.tight_layout(rect=[0, 0, 1, 0.96])
+    fig.savefig(os.path.join(PLOT_DIR, "loso_topography.png"), dpi=140)
+    plt.close(fig)
+    print("🏔️  loso_topography.png")
+
+
+def main():
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    df, X, shap, feats = fit_and_shap()
+    shap.abs().mean().sort_values(ascending=False).to_csv(
+        os.path.join(VAL_DIR, "shap_importance.csv"), header=["mean_abs_shap"])
+    plot_shap_importance(shap, feats)
+    plot_shap_dependence(X, shap)
+    plot_loso_topography()
+    print(f"\n✅ Driver analysis done -> {PLOT_DIR}")
+
+
+if __name__ == "__main__":
+    main()

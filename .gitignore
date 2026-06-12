@@ -1,0 +1,23 @@
+# Priecinky s dátami a výsledkami
+data/
+features/
+output/
+models/weights/*.pkl
+
+# Meteo a Python balast
+*.nc
+__pycache__/
+.DS_Store
+
+# LaTeX build intermediates
+*.aux
+*.log
+*.out
+*.bbl
+*.blg
+*.toc
+*.synctex.gz
+paper/*.pdf
+
+# Temp / generated rasters
+tmp/

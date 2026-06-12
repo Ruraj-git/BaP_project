@@ -1,0 +1,24 @@
+# Python dependencies for the BaP gap-filling pipeline
+numpy
+pandas
+scipy
+scikit-learn
+xgboost
+matplotlib
+seaborn
+
+# Geospatial (static covariate building, virtual-network map)
+geopandas
+rasterio
+pyproj
+shapely
+cartopy
+
+# NetCDF meteorology (ALADIN field extraction)
+xarray
+netCDF4
+
+# Misc
+requests
+Pillow
+python-pptx
