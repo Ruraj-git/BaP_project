@@ -1,5 +1,14 @@
 # GAPFILL-BaP: Virtuálna monitorovacia sieť pre Benzo(a)pyrén
 
+> **About this repository.** Analysis code for the manuscript *"A globally
+> trained machine-learning model for daily benzo[a]pyrene gap-filling and the
+> construction of a virtual monitoring network over Slovakia"* (SHMÚ). The
+> input data (B[a]P observations, ALADIN meteorology, proxy pollutants and the
+> static covariates) and the model outputs are **not** included here — see the
+> data-availability statement in the paper. All paths are derived automatically
+> from `config.py`; install dependencies with `pip install -r requirements.txt`.
+> *(The documentation below is in Slovak.)*
+
 Tento projekt implementuje globálny model strojového učenia na dopĺňanie chýbajúcich meraní $BaP$ a tvorbu virtuálnej monitorovacej siete pre celé Slovensko.
 
 ## Model a Metodika
