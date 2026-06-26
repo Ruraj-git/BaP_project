@@ -21,6 +21,7 @@ Tento projekt implementuje globálny model strojového učenia na dopĺňanie ch
 
 ## Štruktúra projektu
 - `scripts/make_stations.py`: Generovanie zoznamu aktívnych a virtuálnych staníc.
+- `scripts/build_bap_obs_from_eea.py`: Zostavenie pozorovaní $BaP$ z overených dát EEA.
 - `scripts/fetch_pollutants.py`: Sťahovanie hodinových proxy dát z API.
 - `scripts/aggregate_daily.py`: Feature engineering a spájanie dátových zdrojov.
 - `scripts/train_and_fill_bap.py`: Trénovanie modelu a generovanie gap-filled výsledkov.
@@ -51,9 +52,9 @@ Verzie `v4/v5/v6` sú **fázy stavby príznakov** v rámci jedného behu
 (v4 = meteo, v5 = +priestorové, v6 = +emisie), nie samostatné behy.
 
 ## Výkonnosť
-Pri náhodnej $k$-násobnej validácii model dosahuje $R^2 \approx 0.69$ a pri
+Pri náhodnej $k$-násobnej validácii model dosahuje $R^2 \approx 0.70$ a pri
 leakage-free block-gap validácii (dopĺňanie reálnych medzier) medián
-$R^2 \approx 0.76$ na stanicu — výrazne nad sezónnou klimatológiou
-($\approx 0.41$) a perzistenciou ($\approx 0.24$). Na dobre vzorkovaných
+$R^2 \approx 0.74$ na stanicu — výrazne nad sezónnou klimatológiou
+($\approx 0.41$) a perzistenciou ($\approx 0.23$). Na dobre vzorkovaných
 mestských staniciach (pozaďových a dopravných) dosahuje medián LOSO
 $R^2 \approx 0.85$. ($R^2$ = druhá mocnina Pearsonovho korelačného koeficientu.)
