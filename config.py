@@ -15,7 +15,7 @@ import os
 # ===========================================================================
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 PROJECT_NAME = os.path.basename(PROJECT_ROOT)
-RUN = "base"          # -> runs/<RUN>/ ;  e.g. "base", "extended"
+RUN = os.environ.get("GAPFILL_RUN", "base")   # -> runs/<RUN>/ ;  e.g. "base", "extended"
 
 # --- SHARED INPUTS (not per-run; same across all runs) ---
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
