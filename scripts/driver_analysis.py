@@ -81,6 +81,19 @@ def plot_shap_importance(shap, feats, top=22):
     print("📑 shap_importance.png")
 
 
+def _dependence_legend(fig):
+    """One shared legend explaining the blue points and the red trend curve."""
+    from matplotlib.lines import Line2D
+    handles = [
+        Line2D([0], [0], marker="o", linestyle="none", markerfacecolor="#1f77b4",
+               markeredgecolor="none", alpha=0.6, markersize=6,
+               label="one station-day (SHAP value)"),
+        Line2D([0], [0], color="#d62728", lw=2, label="binned median trend"),
+    ]
+    fig.legend(handles=handles, loc="upper right", fontsize=9, frameon=True,
+               bbox_to_anchor=(0.995, 0.995))
+
+
 def plot_shap_dependence(X, shap):
     fig, axes = plt.subplots(2, 3, figsize=(15, 8))
     for ax, f in zip(axes.ravel(), DRIVERS):
@@ -97,14 +110,52 @@ def plot_shap_dependence(X, shap):
         except ValueError:
             pass
         ax.axhline(0, color="k", lw=0.6)
-        ax.set_xlabel(DRIVER_LABELS.get(f, f), fontsize=9)
+        # x-axis carries the Table 1 feature identifier; the descriptive
+        # meaning + unit goes in the panel title.
+        ax.set_xlabel(f, fontsize=10)
+        ax.set_title(DRIVER_LABELS.get(f, f), fontsize=9)
         ax.set_ylabel("SHAP (ln(1+BaP))", fontsize=9)
     fig.suptitle("SHAP dependence: physical drivers of daily BaP "
                  "(positive = higher BaP)", fontsize=13)
     fig.tight_layout(rect=[0, 0, 1, 0.97])
+    _dependence_legend(fig)
     fig.savefig(os.path.join(PLOT_DIR, "shap_dependence.png"), dpi=140)
     plt.close(fig)
     print("📈 shap_dependence.png")
+
+
+def plot_all_dependence(X, shap, feats):
+    """One SHAP dependence plot per feature, written to shap_dependence/."""
+    out = os.path.join(PLOT_DIR, "shap_dependence")
+    os.makedirs(out, exist_ok=True)
+    # rank by importance so filenames sort by influence
+    order = shap.abs().mean().sort_values(ascending=False)
+    for rank, f in enumerate(order.index, start=1):
+        x = X[f].values
+        s = shap[f].values
+        ok = np.isfinite(x) & np.isfinite(s)
+        x, s = x[ok], s[ok]
+        if x.size == 0:
+            continue
+        fig, ax = plt.subplots(figsize=(5.5, 4))
+        ax.scatter(x, s, s=6, alpha=0.15, color="#1f77b4", edgecolors="none")
+        try:
+            q = pd.qcut(x, 20, duplicates="drop")
+            tr = pd.DataFrame({"x": x, "s": s, "q": q}).groupby("q", observed=True)
+            ax.plot(tr["x"].median(), tr["s"].median(), "-", color="#d62728", lw=2)
+        except ValueError:
+            pass
+        ax.axhline(0, color="k", lw=0.6)
+        # x-axis carries the Table 1 identifier; description + unit in the title.
+        ax.set_xlabel(f, fontsize=10)
+        ax.set_ylabel("SHAP (ln(1+BaP))", fontsize=9)
+        ax.set_title(f"{DRIVER_LABELS.get(f, f)}\n(mean|SHAP|={order[f]:.4f})",
+                     fontsize=9)
+        _dependence_legend(fig)
+        fig.tight_layout()
+        fig.savefig(os.path.join(out, f"{rank:02d}_{f}.png"), dpi=140)
+        plt.close(fig)
+    print(f"📂 shap_dependence/  ({len(order)} per-feature plots)")
 
 
 def plot_loso_topography():
@@ -148,6 +199,7 @@ def main():
         os.path.join(VAL_DIR, "shap_importance.csv"), header=["mean_abs_shap"])
     plot_shap_importance(shap, feats)
     plot_shap_dependence(X, shap)
+    plot_all_dependence(X, shap, feats)
     plot_loso_topography()
     print(f"\n✅ Driver analysis done -> {PLOT_DIR}")
 

@@ -18,7 +18,8 @@ def main():
     em = [c for c in vm.EMISSION_FEATURES if c in df.columns]
     pp = [c for c in vm.POP_FEATURES if c in df.columns]
     full = base + g1 + g2 + cl + em + pp
-    proxy_free = [c for c in full if c not in vm.PROXY_FEATURES]  # virtual-site config
+    m4 = base + g1 + g2 + cl + em  # final model (population dropped, see validate_model.resolve_features)
+    proxy_free = [c for c in m4 if c not in vm.PROXY_FEATURES]  # virtual-site config = M4 minus proxies
     configs = [
         ("M0: base (meteo+proxy+typology)", base),
         ("M1: + derived meteo (group-1)", base + g1),
