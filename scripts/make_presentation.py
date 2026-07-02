@@ -199,7 +199,7 @@ fig_slide("Spatial generalization (LOSO) by station", "heatmap_stations.png",
     ], take="Hard cases are atypical, under-sampled regimes.")
 
 # ---------------- 10. LOSO vs block-gap dissociation ----------------
-fig_slide("Extending ≠ gap-filling", "loso_topography.png", side_bullets=[
+fig_slide("Extending ≠ gap-filling", "barplot_r2.png", side_bullets=[
     "Atypical sites fail under LOSO but recover under block-gap:",
     (1, "Stará Lesná 0.00 → 0.68,"),
     (1, "SK0006R 0.38 → 0.59,"),

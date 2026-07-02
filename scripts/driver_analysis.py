@@ -9,8 +9,6 @@ Produces:
   - shap_dependence.png        SHAP dependence for the key physical drivers
                                (valley TPI, boundary layer, heating, ventilation,
                                temperature, season) -> the mechanistic story
-  - loso_topography.png        per-station LOSO bias / skill vs. topography
-                               (how orographically atypical sites are harder)
 SHAP values are on the model's target scale, ln(1+BaP); positive = higher BaP.
 """
 
@@ -160,40 +158,6 @@ def plot_all_dependence(X, shap, feats):
     print(f"📂 shap_dependence/  ({len(order)} per-feature plots)")
 
 
-def plot_loso_topography():
-    loso = pd.read_csv(os.path.join(VAL_DIR, "loso_per_station_pearson.csv"))
-    cov = pd.read_csv(os.path.join(config.COVARIATES_DIR, "station_covariates.csv"))
-    df = loso.merge(cov, on="eoi", how="left")
-    df["tpi_distinct"] = (df["tpi_broad"] - df["tpi_broad"].mean()).abs()
-
-    types = sorted(df["typ"].unique())
-    pal = dict(zip(types, sns.color_palette("tab10", len(types))))
-
-    panels = [
-        ("elev_mean", "MBE", "Elevation [m]", "LOSO bias MBE [ng/m³]"),
-        ("tpi_broad", "MBE", "Topographic position (valley→ridge) [m]", "LOSO bias MBE [ng/m³]"),
-        ("tpi_distinct", "R2", "Topographic distinctiveness |TPI − mean| [m]", "LOSO r²"),
-    ]
-    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-    for ax, (xc, yc, xl, yl) in zip(axes, panels):
-        for t in types:
-            g = df[df["typ"] == t]
-            ax.scatter(g[xc], g[yc], s=55, color=pal[t], label=t, edgecolors="k", linewidths=0.4)
-        for _, r in df.iterrows():
-            ax.annotate(r["eoi"], (r[xc], r[yc]), fontsize=6, alpha=0.7,
-                        xytext=(3, 3), textcoords="offset points")
-        if yc == "MBE":
-            ax.axhline(0, color="k", lw=0.8, ls="--")
-        ax.set_xlabel(xl); ax.set_ylabel(yl)
-    axes[0].legend(title="type", fontsize=8, ncol=2)
-    fig.suptitle("Per-station LOSO performance vs. topography "
-                 "(orographically atypical sites are harder)", fontsize=13)
-    fig.tight_layout(rect=[0, 0, 1, 0.96])
-    fig.savefig(os.path.join(PLOT_DIR, "loso_topography.png"), dpi=140)
-    plt.close(fig)
-    print("🏔️  loso_topography.png")
-
-
 def main():
     os.makedirs(PLOT_DIR, exist_ok=True)
     df, X, shap, feats = fit_and_shap()
@@ -202,7 +166,6 @@ def main():
     plot_shap_importance(shap, feats)
     plot_shap_dependence(X, shap)
     plot_all_dependence(X, shap, feats)
-    plot_loso_topography()
     print(f"\n✅ Driver analysis done -> {PLOT_DIR}")
 
 

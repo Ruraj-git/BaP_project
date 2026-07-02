@@ -69,5 +69,11 @@ def main():
     for label, lm, lp, rb, kp in rows:
         print(f"{label:>6s} {lm:12.3f} {lp:13.3f} {rb:10.3f} {kp:14.3f}")
 
+    out = pd.DataFrame(rows, columns=["c", "LOSO_median_r2", "LOSO_pooled_r2",
+                                      "RB_absMBE", "kfold_pooled_r2"])
+    path = os.path.join(config.VALIDATION_DIR, "weight_offset_sensitivity.csv")
+    out.to_csv(path, index=False)
+    print(f"\n✅ weight_offset_sensitivity.csv -> {path}")
+
 if __name__ == "__main__":
     main()

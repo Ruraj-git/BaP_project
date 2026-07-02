@@ -124,8 +124,8 @@ def main():
     out.to_csv(out_path, index=False)
     print(out.to_string(index=False))
     print(f"\n✅ linear_benchmark.csv -> {out_path}")
-    print("\nCompare to XGBoost: kfold pooled r²=0.69, LOSO median r²=0.80, "
-          "block pooled r²=0.69 / median r²=0.76.")
+    print("\nCompare to XGBoost: kfold pooled r²=0.69, LOSO median r²=0.83, "
+          "block pooled r²=0.69 / median r²=0.78.")
 
 
 if __name__ == "__main__":

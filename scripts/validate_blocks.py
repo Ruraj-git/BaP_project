@@ -10,7 +10,7 @@ held-out block the station's data from OTHER periods stays in training, which is
 exactly the operational situation when filling a gap at a monitored station.
 
 On the SAME held-out blocks we score three methods:
-  - XGBoost   (the model, all v5 features)
+  - XGBoost   (the final model, the full resolved feature set via resolve_features)
   - Persistence       (last observed value before the gap, carried forward)
   - Seasonal climatology (per-station calendar-month mean from the training part)
 
