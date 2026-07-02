@@ -63,9 +63,49 @@ MODEL_PARAMS = {
     'max_depth': 6,
     'reg_alpha': 0.1,
     'reg_lambda': 1.2,
-    'n_jobs': -1,
+    # n_jobs from env so SLURM allocations can cap threads (default -1 = all cores).
+    'n_jobs': int(os.environ.get("GAPFILL_NJOBS", "-1")),
     'random_state': 42
 }
+
+# --- PHYSICALLY-MOTIVATED MONOTONE CONSTRAINTS (core_alt set) ---------------
+# Direction of the PARTIAL effect (all other features held fixed): +1 = BaP may
+# not DECREASE with the feature, -1 = may not INCREASE. Physical priors: more
+# residential/road emission and traffic -> not less BaP; farther from major roads
+# and higher altitude (above the emission/inversion layer) -> not more BaP.
+# Adopted 2026-07-02 after the monotone sweep (fixes the Stara Lesna low-traffic
+# extrapolation, LOSO 0.819->0.829, no regime harmed). See experiments/monotone_*.
+MONOTONE_DIRS = {
+    "traffic_load_log": 1,
+    "traffic_hdv_log": 1,
+    "dist_major_road_km": -1,
+    "emis_bap_log": 1,
+    "emis_pm25_log": 1,
+    "altitude": -1,
+}
+
+
+# Live toggle (also env GAPFILL_MONOTONE=0). The feature-ablation ladder flips this
+# to False to show unconstrained feature value, then back to True for the final
+# adopted "M4 + monotone" row; all other scripts keep it on.
+MONOTONE_ENABLED = os.environ.get("GAPFILL_MONOTONE", "1") != "0"
+
+
+def monotone_for(feature_names):
+    """monotone_constraints dict restricted to features actually present.
+
+    xgboost raises if a constrained feature is absent from the training columns
+    (e.g. ablation runs that drop feature groups), so intersect by name. Pass the
+    result as XGBRegressor(monotone_constraints=...) at fit time. Returns None (the
+    true no-op) when disabled or when no constrained feature is present -- note an
+    EMPTY DICT {} is NOT a no-op with the full params (it changes the fit), so we
+    must return None, never {}.
+    """
+    if not MONOTONE_ENABLED:
+        return None
+    present = set(feature_names)
+    d = {f: dd for f, dd in MONOTONE_DIRS.items() if f in present}
+    return d or None
 
 # Váhy pre typy oblastí (R=Rural, S=Suburban, U=Urban)
 AREA_MAP = {'R': 0, 'S': 1, 'U': 2}

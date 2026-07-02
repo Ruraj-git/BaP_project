@@ -70,7 +70,9 @@ def train_and_impute():
     # To pomôže pozaďovým staniciam (Kolonické sedlo) bez rozbitia kategórií.
     weights = 1.0 / (train_clean['bap'] + 0.5)
 
-    model = xgb.XGBRegressor(**config.MODEL_PARAMS)
+    params = dict(config.MODEL_PARAMS)
+    params["monotone_constraints"] = config.monotone_for(features)
+    model = xgb.XGBRegressor(**params)
     model.fit(X, y, sample_weight=weights)
 
     stations_meta = pd.read_csv(config.STATIONS_CSV)

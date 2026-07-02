@@ -43,7 +43,9 @@ def train_model(df_train, features):
     X = df_train[features]
     y = np.log1p(df_train["bap"])
     weights = 1.0 / (df_train["bap"] + 0.5)
-    model = xgb.XGBRegressor(**config.MODEL_PARAMS)
+    params = dict(config.MODEL_PARAMS)
+    params["monotone_constraints"] = config.monotone_for(features)
+    model = xgb.XGBRegressor(**params)
     model.fit(X, y, sample_weight=weights)
     return model
 

@@ -30,7 +30,9 @@ RB = ["SK0006R", "SK0004R"]
 def fit_predict(tr, te, weighted):
     X, y = tr[FEATURES], np.log1p(tr["bap"])
     w = 1.0 / (tr["bap"] + 0.5) if weighted else None
-    m = xgb.XGBRegressor(**config.MODEL_PARAMS)
+    params = dict(config.MODEL_PARAMS)
+    params["monotone_constraints"] = config.monotone_for(FEATURES)
+    m = xgb.XGBRegressor(**params)
     m.fit(X, y, sample_weight=w)
     return np.maximum(0.0, np.expm1(m.predict(te[FEATURES])))
 

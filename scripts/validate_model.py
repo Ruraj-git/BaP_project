@@ -78,6 +78,11 @@ DIRECTIONAL_FEATURES = ["wdir_emis_bap_log"]
 # Features depending only on co-located measurements (PM/NO2) – absent at virtual sites
 PROXY_FEATURES = ["pm10_mean", "pm25_mean", "no2_mean"] + CONC_LAG_FEATURES
 
+# Station-classification labels (not available at an arbitrary grid cell). The
+# proxy-free config V is a *deployable* bound, so it drops these too -- a true V is
+# independent of station-specific labels (only grid-computable covariates remain).
+TYPOLOGY_FEATURES = ["typ_oblasti_code", "typ_zdroja_code"]
+
 # Použijeme len tie príznaky, ktoré v datasete reálne existujú (kompatibilita v3..v6)
 def resolve_features(df):
     feats = list(BASE_FEATURES)
@@ -137,7 +142,9 @@ def fit_predict(train_df, test_df):
     # Váženie ako v produkčnom skripte: nižšie BaP -> vyššia váha
     weights = 1.0 / (train_df["bap"] + 0.5)
 
-    model = xgb.XGBRegressor(**config.MODEL_PARAMS)
+    params = dict(config.MODEL_PARAMS)
+    params["monotone_constraints"] = config.monotone_for(FEATURES)
+    model = xgb.XGBRegressor(**params)
     model.fit(X_tr, y_tr, sample_weight=weights)
 
     pred = np.maximum(0.0, np.expm1(model.predict(test_df[FEATURES])))

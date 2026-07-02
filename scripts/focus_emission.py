@@ -27,7 +27,8 @@ def main():
     # excluded here too: the "+ emission" configs isolate the emission effect
     # and match the final M4 model (no population layer).
     m4 = base + g1 + g2 + cl + em                                          # proxy + emission (final M4)
-    pf_no = [c for c in base + g1 + g2 if c not in vm.PROXY_FEATURES]      # proxy-free, no emission
+    pf_no = [c for c in base + g1 + g2 if c not in vm.PROXY_FEATURES
+             and c not in vm.TYPOLOGY_FEATURES]                            # proxy-free + typology-free, no emission
     pf_em = pf_no + em                                                     # proxy-free + emission
 
     configs = {
