@@ -17,8 +17,9 @@ is excluded), i.e. the honest "what if this site were unmonitored" estimate.
 For the five virtual RB cells (no in-period B[a]P) production and V are plain
 predictions of the all-21 model.
 
-Annual mean over full calendar years 2024-2025 (matches the network-map
-convention; a partial 2023 missing the winter peak would bias the mean low).
+Annual mean over calendar year 2024 (matches the network-map convention: 2024
+is the most recent fully verified EEA year; the partial 2023 missing the winter
+peak would bias the mean low, and 2025 remains pre-release).
 
 Output: runs/<run>/output/validation/rb_yearly_means.csv
 Run: GAPFILL_RUN=base OMP_NUM_THREADS=16 python scripts/rb_yearly_means.py
@@ -35,7 +36,7 @@ sys.path.append(os.path.join(REPO_ROOT, "scripts"))
 import config  # noqa: E402
 import validate_model as vm  # noqa: E402
 
-YEARS = ("2024", "2025")
+YEARS = ("2024",)
 RB = ["SK0004R", "SK0006R", "SK0002R", "SK0041A", "SK0042A", "SK0406A", "SK0007R"]
 
 

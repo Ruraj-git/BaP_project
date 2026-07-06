@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Option-A virtual-network map: single multi-year mean modelled B[a]P at all 54
+Option-A virtual-network map: 2024 annual-mean modelled B[a]P at all 54
 network sites (monitored + virtual), with target-exceedance highlighted.
 
 Reads the filled daily series (output/*_filled.csv) produced by fill_all_days.py,
-averages bap_filled over the whole record per site, and plots the sites on a
+averages bap_filled over calendar year 2024 per site, and plots the sites on a
 lon/lat map. Monitored vs virtual sites use different markers; sites whose
-multi-year mean exceeds the 1 ng/m3 target value are ringed.
+2024 mean exceeds the 1 ng/m3 target value are ringed.
 """
 import os, sys, glob
 import numpy as np
@@ -34,11 +34,15 @@ _obs["eoi"] = _obs["eoi"].astype(str).str.strip()
 _obs = _obs[(_obs["datum"] >= STUDY_START) & _obs["bap"].notna()]
 monitored = set(_obs["eoi"].unique())
 
-# The multi-year mean is computed over full calendar years only (2024-2025).
-# The filled series starts 2023-06, so a partial 2023 (missing the Jan-Mar
-# winter peak) would bias the annual mean downward; we omit it for a fair,
-# seasonally balanced climatology.
-MEAN_YEARS = ("2024", "2025")
+# The map shows the 2024 annual mean only: 2024 is the most recent year with
+# fully verified EEA reference observations (2025 remains pre-release, with
+# December instrument outages at part of the network), and the partial 2023
+# (missing the Jan-Mar winter peak) would bias the annual mean downward.
+# The 2024 meteorological archive lacks 10 January days (source ALADIN gap:
+# Jan 1-9 + Jan 31); imputation shifts near-threshold site means by <0.05 and
+# would flip only Banska Bystrica SK0214A (0.998; observed 1.01) above target,
+# so the mapped exceedance count is conservative.
+MEAN_YEARS = ("2024",)
 rows = []
 for f in sorted(glob.glob(os.path.join(config.OUTPUT_DIR, "*_filled.csv"))):
     eoi = os.path.basename(f).replace("_filled.csv", "")
@@ -49,6 +53,7 @@ for f in sorted(glob.glob(os.path.join(config.OUTPUT_DIR, "*_filled.csv"))):
 m = pd.DataFrame(rows).merge(st[["eoi", "name", "lat", "lon", "typ_oblasti", "typ_zdroja"]], on="eoi")
 m["monitored"] = m["eoi"].isin(monitored)
 yr0, yr1 = m["yr0"].min(), m["yr1"].max()
+_period = yr0 if yr0 == yr1 else f"{yr0}–{yr1}"
 print(f"{len(m)} sites, {m['monitored'].sum()} monitored / {(~m['monitored']).sum()} virtual; "
       f"mean range {m['mean_bap'].min():.2f}-{m['mean_bap'].max():.2f}; "
       f"exceedances (>{TARGET}): {(m['mean_bap']>TARGET).sum()}")
@@ -67,7 +72,7 @@ try:
 except Exception as e:  # border is decorative; never let it break the figure
     print(f"[warn] could not draw Slovakia border: {e}")
 
-vmax = 2.0  # cap for contrast; the one industrial outlier (~4 ng/m3) saturates the top colour
+vmax = 2.0  # cap for contrast; the one industrial outlier (~4.5 ng/m3) saturates the top colour
 cmap = plt.get_cmap("YlOrRd")
 for mon, marker, lbl in [(True, "o", "monitored"), (False, "^", "virtual")]:
     sub = m[m["monitored"] == mon]
@@ -80,10 +85,10 @@ ax.scatter(exc["lon"], exc["lat"], s=320, facecolors="none", edgecolors="blue",
            linewidths=1.6, zorder=4, label=f"> {TARGET:.0f} ng m$^{{-3}}$ (target)")
 
 cb = fig.colorbar(sc, ax=ax, shrink=0.85, pad=0.02, extend="max")
-cb.set_label("Multi-year mean B[a]P [ng m$^{-3}$]")
+cb.set_label(f"Annual-mean B[a]P {_period} [ng m$^{{-3}}$]")
 ax.set_xlabel("Longitude [°E]")
 ax.set_ylabel("Latitude [°N]")
-ax.set_title(f"Modelled benzo[a]pyrene across the virtual monitoring network ({yr0}–{yr1})")
+ax.set_title(f"Modelled benzo[a]pyrene across the virtual monitoring network ({_period})")
 ax.set_aspect(1.0 / np.cos(np.deg2rad(m["lat"].mean())))
 ax.grid(True, ls=":", alpha=0.4)
 ax.legend(loc="upper left", framealpha=0.9, fontsize=9)
