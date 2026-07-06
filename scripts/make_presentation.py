@@ -145,10 +145,10 @@ bullets(s, [
 s = slide_blank(); header(s, "Data & study area")
 bullets(s, [
     "Slovak national B[a]P network, projected onto the 2 km ALADIN grid (215×110).",
-    "6 250 daily samples, 21 training stations, 2023-06 to 2025-12.",
+    "6 408 daily samples, 21 training stations, 2023-06 to 2025-12.",
     "Station typology (training): 2 rural-bg, 6 suburban-bg, 1 suburban-industrial,",
     (1, "5 urban-bg, 7 urban-traffic."),
-    "54 grid-mapped sites total → 30 are virtual (never monitored).",
+    "54 grid-mapped sites total → 33 are virtual (never monitored).",
     "Target: daily B[a]P concentration [ng m⁻³].",
 ], Inches(0.7), Inches(1.5), Inches(12), Inches(5), size=20, gap=10)
 
@@ -178,10 +178,10 @@ bullets(s, [
 # ---------------- 7. Headline skill ----------------
 fig_slide("Headline skill — block-gap vs baselines", "block_baseline_comparison.png",
     side_bullets=[
-        "Block-gap median per-station r² = 0.76 (RMSE 1.53 ng m⁻³ pooled).",
+        "Block-gap median per-station r² = 0.78 (RMSE 1.51 ng m⁻³ pooled).",
         "≈ doubles seasonal climatology (r² 0.41).",
-        "Far exceeds persistence (r² 0.24).",
-        "Pooled block-gap r² (0.69) ≈ k-fold (0.69): sparse sampling ⇒ little leakage.",
+        "Far exceeds persistence (r² 0.23).",
+        "Pooled block-gap r² (0.69) ≈ k-fold (0.70): sparse sampling ⇒ little leakage.",
     ], take="Reliable daily gap-filling at monitored stations.")
 
 # ---------------- 8. Time series ----------------
@@ -192,9 +192,9 @@ fig_slide("Full-network gap-filled series", "timeseries_overview.png",
 fig_slide("Spatial generalization (LOSO) by station", "heatmap_stations.png",
     side_bullets=[
         "Generalizes well to urban regimes:",
-        (1, "urban-bg r² ≈ 0.86, urban-traffic ≈ 0.84."),
-        "Suburban background ≈ 0.80.",
-        "Fails at the single industrial site (r² 0.04).",
+        (1, "urban-bg r² ≈ 0.84, urban-traffic ≈ 0.83."),
+        "Suburban background ≈ 0.75.",
+        "Fails at the single industrial site (r² 0.05).",
         "Rural-background correlation weak (few analogues).",
     ], take="Hard cases are atypical, under-sampled regimes.")
 
@@ -223,10 +223,10 @@ bullets(s, [
     "Adding the residential-emission term leaves aggregate skill ~unchanged…",
     (1, "at instrumented sites the proxies already encode emission intensity."),
     "…but it strongly corrects rural-background bias:",
-    (1, "with proxies: mean |MBE| 0.86 → 0.52 ng m⁻³  (−40%),"),
-    (1, "proxy-free (true virtual site): 1.63 → 0.96 ng m⁻³  (−41%)."),
+    (1, "with proxies: RB mean |MBE| 0.40 → 0.20 ng m⁻³  (−50%),"),
+    (1, "proxy-free (true virtual site): 0.81 → 0.25 ng m⁻³  (−69%)."),
     "Directly targets the largest uncertainty of existing European B[a]P maps (rural).",
-    "Proxy-free virtual-site expectation: LOSO median r² ≈ 0.66.",
+    "Proxy-free virtual-site expectation: LOSO median r² ≈ 0.67.",
 ], Inches(0.7), Inches(1.4), Inches(12), Inches(5.4), size=19, gap=9)
 takeaway(s, "The static emission field governs WHERE rural B[a]P sits.")
 
@@ -238,7 +238,7 @@ bullets(s, [
     "Physics is real: mean B[a]P 3.3 (wind away) → 7.9 ng m⁻³ (wind from plant);",
     (1, "partial corr 0.49 after controlling for dispersion + season."),
     "We built a wind-conditioned upwind industrial-emission term and retrained.",
-    "Result: no cross-validated skill gain (block-gap 0.27→0.26, LOSO 0.04;",
+    "Result: no cross-validated skill gain (block-gap 0.27→0.26, LOSO 0.05;",
     (1, "MBE only −2.24 → −2.07)."),
     "Cause is the network: a single industrial station leaves no analogue.",
 ], Inches(0.7), Inches(1.4), Inches(12), Inches(5.4), size=18, gap=7)
@@ -247,8 +247,8 @@ takeaway(s, "Limitation is network design — not a missing predictor.")
 # ---------------- 14. Virtual network map ----------------
 fig_slide("The virtual monitoring network", "virtual_network_map.png", side_bullets=[
     "Continuous daily B[a]P for all 54 cells, 2023–2025.",
-    "Includes 30 never-monitored sites.",
-    "16 of 54 sites exceed the 1 ng m⁻³ target (multi-year mean).",
+    "Includes 33 never-monitored sites.",
+    "17 of 54 sites exceed the 1 ng m⁻³ target (2024 annual mean).",
     "Highest: eastern industrial site & urban centres;",
     (1, "remote rural sites stay well below."),
 ], take="A usable continuous B[a]P product over Slovakia.")
@@ -258,18 +258,18 @@ s = slide_blank(); header(s, "Limitations & next steps")
 bullets(s, [
     "Industrial regime: needs more industrial stations, not more emission data.",
     "Remote rural correlation stays modest (clean, near-detection-limit, sub-grid).",
-    "Proxy pollutants exist only at instrumented sites → proxy-free bound r² ≈ 0.66.",
+    "Proxy pollutants exist only at instrumented sites → proxy-free bound r² ≈ 0.67.",
     "Next: continuous 2 km raster field; additional SI monitoring; longer record.",
 ], Inches(0.7), Inches(1.5), Inches(12), Inches(5), size=20, gap=12)
 
 # ---------------- 16. Conclusions ----------------
 s = slide_blank(); header(s, "Conclusions")
 bullets(s, [
-    "One globally trained model fills daily B[a]P gaps: block-gap median r² = 0.76.",
+    "One globally trained model fills daily B[a]P gaps: block-gap median r² = 0.78.",
     "Clearly beats climatology and persistence.",
     "Terrain + traffic covariates are decisive for spatial generalization.",
-    "Bottom-up residential emission cuts rural-background bias by up to 41%.",
-    "Delivers a continuous virtual monitoring network, incl. 30 unmonitored sites.",
+    "Bottom-up residential emission cuts rural-background bias by up to 69%.",
+    "Delivers a continuous virtual monitoring network, incl. 33 unmonitored sites.",
     "Open challenge — industrial regime — is a monitoring-network limitation.",
 ], Inches(0.7), Inches(1.5), Inches(12), Inches(5), size=20, gap=10)
 takeaway(s, "Addresses the rural uncertainty that limits existing European B[a]P maps.")

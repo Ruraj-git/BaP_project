@@ -4,10 +4,16 @@
 Option-A virtual-network map: 2024 annual-mean modelled B[a]P at all 54
 network sites (monitored + virtual), with target-exceedance highlighted.
 
-Reads the filled daily series (output/*_filled.csv) produced by fill_all_days.py,
-averages bap_filled over calendar year 2024 per site, and plots the sites on a
-lon/lat map. Monitored vs virtual sites use different markers; sites whose
-2024 mean exceeds the 1 ng/m3 target value are ringed.
+Reads the daily series (output/*_filled.csv) produced by fill_all_days.py and
+averages the PURE model prediction (bap_predicted) over calendar year 2024 per
+site -- not the operational fill (bap_filled), which retains observations where
+present. Plotting the pure prediction everywhere keeps monitored and virtual
+sites directly comparable and makes the mapped value identical to the Model
+column of the appendix roster (make_station_table.py). The two choices differ
+appreciably only at the under-predicted industrial site SK0018A (pure 3.73 vs
+filled 4.48 ng/m3); everywhere else the gap is <= 0.06 and the 17-site
+exceedance set is identical. Monitored vs virtual sites use different markers;
+sites whose 2024 mean exceeds the 1 ng/m3 target value are ringed.
 """
 import os, sys, glob
 import numpy as np
@@ -48,7 +54,7 @@ for f in sorted(glob.glob(os.path.join(config.OUTPUT_DIR, "*_filled.csv"))):
     eoi = os.path.basename(f).replace("_filled.csv", "")
     d = pd.read_csv(f)
     dm = d[d["datum"].str[:4].isin(MEAN_YEARS)]
-    rows.append({"eoi": eoi, "mean_bap": dm["bap_filled"].mean(),
+    rows.append({"eoi": eoi, "mean_bap": dm["bap_predicted"].mean(),
                  "ndays": len(dm), "yr0": dm["datum"].min()[:4], "yr1": dm["datum"].max()[:4]})
 m = pd.DataFrame(rows).merge(st[["eoi", "name", "lat", "lon", "typ_oblasti", "typ_zdroja"]], on="eoi")
 m["monitored"] = m["eoi"].isin(monitored)
@@ -72,7 +78,7 @@ try:
 except Exception as e:  # border is decorative; never let it break the figure
     print(f"[warn] could not draw Slovakia border: {e}")
 
-vmax = 2.0  # cap for contrast; the one industrial outlier (~4.5 ng/m3) saturates the top colour
+vmax = 2.0  # cap for contrast; the one industrial outlier (~3.7 ng/m3) saturates the top colour
 cmap = plt.get_cmap("YlOrRd")
 for mon, marker, lbl in [(True, "o", "monitored"), (False, "^", "virtual")]:
     sub = m[m["monitored"] == mon]

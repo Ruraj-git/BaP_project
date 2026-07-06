@@ -12,16 +12,17 @@ For every site we report:
   M/V              Monitored (>=1 in-period B[a]P observation) or Virtual
   Proxies          which co-located proxies exist in 2024 (PM / NO2 / none)
   Model            2024 annual mean of the pure model prediction (all 366 days;
-                   at virtual sites this is exactly the mapped Fig.~5 value)
+                   exactly the value mapped in Fig.~5 at every site)
   Obs              2024 annual mean of the B[a]P observations (monitored only)
   Bias             paired mean(model - obs) on observation days (monitored only)
 
 The bias is IN-SAMPLE (the production model is trained on all observations, so
 it validates the operational fill's internal consistency, not out-of-sample
 skill -- see the per-station LOSO / block-gap MBE in Table~\\ref{tab:perstation}).
-Fig.~5 plots the operational fill, which retains observations where present; at
-monitored sites the mapped value therefore equals Obs on sampled days and Model
-on the gap days, so the mapped mean sits between the Model and Obs columns.
+Fig.~5 (make_network_map.py) plots the same pure prediction at every site, so
+the Model column IS the mapped value, monitored sites included; the operational
+filled series (which retains observations where present) differs appreciably
+only at the under-predicted industrial site SK0018A.
 
 Outputs (into the active run's validation dir, alongside the figures):
   station_table.csv   machine-readable roster
@@ -135,7 +136,8 @@ def main():
                  r"observations) or virtual. Proxies lists the co-located "
                  r"\pmt{}/\pmf{}/\nod{} terms present in \num{2024}. "
                  r"Model is the \num{2024} mean of the pure model prediction "
-                 r"(all days; at virtual sites identical to the mapped value); "
+                 r"(all days; at every site identical to the value mapped in "
+                 r"Fig.~\ref{fig:vnmap}); "
                  r"Obs is the observed \num{2024} annual mean and Bias the paired "
                  r"mean model$-$obs on observation days (both monitored only). "
                  r"The bias is in-sample -- for held-out per-station skill see "
