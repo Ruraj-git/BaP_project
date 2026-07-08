@@ -17,11 +17,25 @@ rebuilds the observation table from that source.
 Merge rule
 ----------
 - For the stations and years that the EEA verified dataset covers
-  (BaP = pollutant 5029, currently 2019-2024, 22 Slovak sampling points), use
-  the EEA verified value (Validity == 1 and Verification == 1).
-- For everything else -- 2025 (not yet verified by EEA), pre-2019, and stations
-  the EEA BaP set does not contain (e.g. the trained station SK0078A,
-  NoCode-99501) -- keep the current `data/bap_obs.csv` value.
+  (BaP = pollutant 5029, 2019-2024, 23 Slovak sampling points in scope), use
+  the EEA verified value (Validity == 1 and Verification == 1). This includes
+  the trained station SK0078A (Žarnovica): its BaP sampling point
+  SPO-SK0078A_05029_100 IS registered and delivered verified (116 daily rows for
+  2024), byte-identical to the national-pipeline values.
+- For everything else -- 2025 (not yet verified by EEA), pre-2019, and the
+  codeless NoCode-99501 placeholder -- keep the current `data/bap_obs.csv` value.
+
+Completeness guard
+------------------
+The `/ParquetFile/urls` endpoint is UNRELIABLE: it silently returns a subset of
+the registered sampling points (the 2026-06-25 run dropped SK0078A and two
+others; on 2026-06-30 it returned nothing at all). To stop a silent drop from
+ever corrupting the table again, this script cross-checks the sampling points it
+actually loaded against the authoritative EEA `/List` registry (filtered to BaP
+= 05029) and ABORTS if any in-scope registered station is missing. EXCLUDE_SPO
+holds stations that are EEA-registered but deliberately outside this study's
+national dataset (SK0266A Prešov, SK0267A Košice-Štefánikova -- no national BaP
+counterpart, not in the trained set) so they don't trip a false alarm.
 
 Output: `data/bap_obs_eea.csv` (NEW file; does NOT overwrite the live
 `bap_obs.csv`). A `source` column records EEA-verified vs current-pipeline.
@@ -42,33 +56,69 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(REPO_ROOT)
 import config  # noqa: E402
 
-API_URLS = "https://eeadmz1-downloads-api-appservice.azurewebsites.net/ParquetFile/urls"
+API_BASE = "https://eeadmz1-downloads-api-appservice.azurewebsites.net"
+API_URLS = f"{API_BASE}/ParquetFile/urls"
+API_LIST = f"{API_BASE}/List"           # registry of sampling points (authoritative)
+API_FILE = f"{API_BASE}/ParquetFile"    # direct zip download (fallback)
 BAP_POLLUTANT = "http://dd.eionet.europa.eu/vocabulary/aq/pollutant/5029"  # BaP in PM10
+BAP_CODE = "05029"            # sampling-point code segment for BaP-in-PM10
 DATASET_VERIFIED = 2          # E1a verified (2013->last reported year)
 EMAIL = os.environ.get("EEA_EMAIL", "air-quality-download@example.com")
+
+# EEA-registered BaP sampling points that are deliberately OUT of scope for this
+# study (no national BaP counterpart in data/bap_obs.csv, not in the trained
+# set). Listed here so the completeness guard does not raise a false alarm; any
+# OTHER registered station missing from the download is a real error.
+EXCLUDE_SPO = {"SK0266A", "SK0267A"}
 
 CACHE = os.path.join(config.DATA_DIR, "eea_bap_cache")
 CURRENT = config.OBSERVATIONS_CSV                       # data/bap_obs.csv
 OUT = os.path.join(config.DATA_DIR, "bap_obs_eea.csv")
 
 
-def fetch_url_list():
-    # The EEA endpoint streams its response in a way urllib mis-reads (returns
-    # only the header); curl reads it correctly, so we shell out.
-    body = json.dumps({
+def _request_body():
+    return json.dumps({
         "countries": ["SK"], "cities": [],
         "pollutants": [BAP_POLLUTANT], "dataset": DATASET_VERIFIED,
         "dateTimeStart": "2013-01-01T00:00:00.000Z",
         "dateTimeEnd": "2026-01-01T00:00:00.000Z",
         "aggregationType": "day", "email": EMAIL,
     })
-    txt = subprocess.run(
-        ["curl", "-sS", "-m", "120", "-X", "POST", API_URLS,
-         "-H", "Content-Type: application/json", "-d", body],
-        capture_output=True, text=True, check=True).stdout
+
+
+def _post(url, body, binary_out=None, timeout="120"):
+    # The EEA endpoints stream responses in a way urllib mis-reads (returns only
+    # the header); curl reads them correctly, so we shell out.
+    cmd = ["curl", "-sS", "-m", timeout, "-X", "POST", url,
+           "-H", "Content-Type: application/json", "-d", body]
+    if binary_out:
+        cmd += ["-o", binary_out]
+        subprocess.run(cmd, check=True)
+        return None
+    return subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
+
+
+def registry_bap_stations():
+    """Authoritative set of SK stations with a registered BaP (05029) sampling
+    point, from the EEA `/List` endpoint. `/List` ignores the pollutant filter
+    and returns every SK sampling point, so we filter client-side on the 05029
+    code segment. This is what the download is checked against."""
+    txt = _post(API_LIST, _request_body())
+    try:
+        spos = json.loads(txt)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"EEA /List did not return JSON:\n{txt[:300]}") from exc
+    stations = {s.split("SPO-")[1][:7] for s in spos if f"_{BAP_CODE}_" in s}
+    if not stations:
+        raise RuntimeError(f"EEA /List returned no BaP sampling points:\n{txt[:300]}")
+    return stations
+
+
+def fetch_url_list():
+    txt = _post(API_URLS, _request_body())
     urls = [u.strip() for u in txt.splitlines() if u.strip().endswith(".parquet")]
     if not urls:
-        raise RuntimeError(f"EEA API returned no parquet URLs:\n{txt[:300]}")
+        raise RuntimeError(f"EEA /ParquetFile/urls returned no parquet URLs:\n{txt[:300]}")
     return urls
 
 
@@ -81,6 +131,47 @@ def download(urls):
             subprocess.run(["curl", "-sS", "-m", "120", "-o", p, u], check=True)
         paths.append(p)
     return paths
+
+
+def download_via_zip_fallback():
+    """Fallback when /ParquetFile/urls returns an empty/short list: pull the
+    verified BaP data straight from /ParquetFile (a zip), chunked by year to stay
+    under the endpoint's request-size limit, and split it into one full-history
+    parquet per sampling point in CACHE (matching the /urls cache layout)."""
+    import glob
+    import io
+    import zipfile
+    import pandas as pd
+
+    os.makedirs(CACHE, exist_ok=True)
+    body = json.loads(_request_body())
+    frames = {}
+    for yr in range(2019, 2025):  # verified dataset currently ends 2024
+        body["dateTimeStart"] = f"{yr}-01-01T00:00:00.000Z"
+        body["dateTimeEnd"] = f"{yr}-12-31T23:59:59.000Z"
+        tmp = os.path.join(CACHE, f"_fallback_{yr}.zip")
+        _post(API_FILE, json.dumps(body), binary_out=tmp, timeout="180")
+        try:
+            zf = zipfile.ZipFile(tmp)
+        except zipfile.BadZipFile:
+            head = open(tmp, "rb").read(200)
+            os.remove(tmp)
+            raise RuntimeError(f"/ParquetFile fallback ({yr}) not a zip: {head!r}")
+        for nm in zf.namelist():
+            if f"_{BAP_CODE}_" not in nm:
+                continue
+            spo = os.path.basename(nm)            # SPO-SKxxxx_05029_100.parquet
+            frames.setdefault(spo, []).append(pd.read_parquet(io.BytesIO(zf.read(nm))))
+        zf.close()
+        os.remove(tmp)
+    if not frames:
+        raise RuntimeError("/ParquetFile fallback produced no BaP files")
+    paths = []
+    for spo, parts in frames.items():
+        p = os.path.join(CACHE, spo)
+        pd.concat(parts, ignore_index=True).to_parquet(p, index=False)
+        paths.append(p)
+    return sorted(paths)
 
 
 def load_verified(paths):
@@ -102,6 +193,30 @@ def cached_parquets():
     return sorted(glob.glob(os.path.join(CACHE, "*.parquet")))
 
 
+def verify_completeness(loaded_stations):
+    """Abort if the download is missing any in-scope registered BaP station.
+    This is the guard against the /urls endpoint silently returning a subset
+    (see module docstring). Returns the authoritative registry for reporting."""
+    registry = registry_bap_stations()
+    expected = registry - EXCLUDE_SPO
+    missing = expected - loaded_stations
+    extra = loaded_stations - registry          # in cache but no longer registered
+    print(f"EEA /List registry: {len(registry)} BaP stations "
+          f"({len(EXCLUDE_SPO)} excluded by design) -> {len(expected)} in scope; "
+          f"loaded {len(loaded_stations)}")
+    if missing:
+        raise RuntimeError(
+            "EEA download is INCOMPLETE -- the following registered BaP stations "
+            f"are missing from the loaded data: {sorted(missing)}. The "
+            "/ParquetFile/urls endpoint likely returned a partial list. Delete "
+            f"{CACHE} and re-run (the script will fall back to /ParquetFile), or "
+            "add genuinely out-of-scope stations to EXCLUDE_SPO.")
+    if extra:
+        print(f"  NOTE: {sorted(extra)} are cached but not in the current "
+              "registry (kept; verify they are still intended).")
+    return registry
+
+
 def main():
     # Cache-first: the EEA endpoint throttles repeated requests, so reuse the
     # local cache when present and only call the API to populate an empty cache.
@@ -110,12 +225,19 @@ def main():
         print(f"Using cached EEA parquet files: {len(paths)} (in {CACHE})")
     else:
         print(f"EEA email: {EMAIL}  (set EEA_EMAIL to override)")
-        urls = fetch_url_list()
-        print(f"EEA verified BaP files for SK: {len(urls)}")
-        paths = download(urls)
+        try:
+            urls = fetch_url_list()
+            print(f"EEA verified BaP files for SK (via /urls): {len(urls)}")
+            paths = download(urls)
+        except RuntimeError as exc:
+            print(f"  /urls path failed ({exc}); falling back to /ParquetFile zip")
+            paths = download_via_zip_fallback()
+            print(f"EEA verified BaP files for SK (via fallback): {len(paths)}")
     eea = load_verified(paths)
     eea_years = set(eea["datum"].str[:4])
     eea_stations = set(eea["eoi"])
+    # Hard completeness check against the authoritative registry BEFORE writing.
+    verify_completeness(eea_stations)
     print(f"EEA verified: {len(eea)} rows | years {sorted(eea_years)} | "
           f"{len(eea_stations)} stations")
 

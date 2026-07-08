@@ -7,12 +7,13 @@ control / spatial-transferability angle.
 Produces:
   - shap_importance.png        mean |SHAP| per feature, coloured by group
   - shap_dependence.png        SHAP dependence for the key physical drivers
-                               (valley TPI, boundary layer, heating, ventilation,
-                               temperature, season) -> the mechanistic story
+                               (valley TPI, boundary layer, heating, residential
+                               emission, temperature, season) -> the mechanistic story
 SHAP values are on the model's target scale, ln(1+BaP); positive = higher BaP.
 """
 
 import os
+import shutil
 import sys
 import numpy as np
 import pandas as pd
@@ -33,12 +34,14 @@ VAL_DIR = config.VALIDATION_DIR
 PLOT_DIR = config.PLOTS_DIR
 sns.set_theme(style="whitegrid", context="notebook")
 
-DRIVERS = ["tpi_broad", "hpbl_min", "heating_degree_hours", "vrate_min",
+DRIVERS = ["tpi_local", "hpbl_min", "heating_degree_hours", "emis_bap_log",
            "t_mean", "doy_cos"]
 DRIVER_LABELS = {
+    "tpi_local": "Local topographic position (valley → ridge) [m]",
     "tpi_broad": "Topographic position (valley → ridge) [m]",
     "hpbl_min": "Min. boundary-layer height [m]",
     "heating_degree_hours": "Heating-degree hours",
+    "emis_bap_log": "Residential BaP emission [ln(1+g/h)]",
     "vrate_min": "Min. ventilation rate",
     "t_mean": "Daily mean temperature [°C]",
     "doy_cos": "Season (cos day-of-year; winter→+1)",
@@ -127,6 +130,9 @@ def plot_shap_dependence(X, shap):
 def plot_all_dependence(X, shap, feats):
     """One SHAP dependence plot per feature, written to shap_dependence/."""
     out = os.path.join(PLOT_DIR, "shap_dependence")
+    # rank prefixes shift between runs, so old files are never overwritten --
+    # start from an empty folder to avoid mixing generations
+    shutil.rmtree(out, ignore_errors=True)
     os.makedirs(out, exist_ok=True)
     # rank by importance so filenames sort by influence
     order = shap.abs().mean().sort_values(ascending=False)
