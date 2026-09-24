@@ -9,6 +9,11 @@
 > from `config.py`; install dependencies with `pip install -r requirements.txt`.
 > *(The documentation below is in Slovak.)*
 
+> **APR manuscript.** Code and derived validation tables for the follow-up
+> manuscript *"Benzo[a]pyrene reconstruction from routine pollutant measurements
+> and environmental data across the Slovak monitoring network"* (submitted to
+> *Atmospheric Pollution Research*) are in [`APR/`](APR/README.md).
+
 Tento projekt implementuje globálny model strojového učenia na dopĺňanie chýbajúcich meraní $BaP$ a tvorbu virtuálnej monitorovacej siete pre celé Slovensko.
 
 ## Model a Metodika
