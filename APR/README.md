@@ -26,6 +26,22 @@ Additional figure/table scripts: `analysis/observed_context/review_context_v1.py
 (Fig. 1) and `analysis/manuscript_v2/contrasts_v2.py` (Fig. 3 and the
 supplementary contrast table).
 
+## Consolidated input ladder (release apr-v1.1)
+
+The revised manuscript evaluates a nested ladder of input groups (PM, P = PM +
+NO2, E = environmental inputs, M = station metadata, I = station indicators)
+with identical settings and 500 m static covariates for all tree models; the
+complete ladder with 2 km static covariates is reported as a support
+sensitivity. Code: `analysis/consolidated_2km/` (see its README and
+`SPECIFICATION.md`); manuscript tables, macros and figures: `analysis/manuscript_v3/assets_v3.py` (Fig. 1: `network_typology_map_v3.py`).
+Derived tables: `results/consolidated_500m/scores/` (primary) and
+`results/consolidated_2km/scores_v2/` (2 km, scored against 500 m).
+
+Model names in the revised manuscript map to the earlier ones as follows:
+PM+I = PM-XGB, E+P+M+I = FULL-ID, E+P+M = M-AUX, E = G, E+P = G+P,
+P = P+calendar. E, E+P and P reproduce the earlier G, G+P and P+calendar
+predictions exactly.
+
 ## Derived validation tables
 
 `results/clean_rebuild/r02/scores/` (main fits) and
