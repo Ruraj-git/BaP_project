@@ -504,7 +504,7 @@ def main():
             ax.scatter(np.arange(len(order_st)) + off, x.observed if arm == 'Observed' else x.prediction, c=color,
                        marker=marker, s=30, label=NAME.get(arm, arm), zorder=3)
         ax.set_title(str(year), loc='left')
-        ax.set_ylabel('Station-year mean over sampled dates (ng m$^{-3}$)')
+        ax.set_ylabel('Station-year mean (ng m$^{-3}$)')
         k = order_st.index(IND)
         ax.axvspan(k - .45, k + .45, color='#eeeeee', zorder=0)
         ax.grid(axis='y', alpha=.2)
@@ -593,6 +593,36 @@ def main():
     fig.savefig(OUT / 'gap_demo.png', dpi=200)
     plt.close(fig)
     num['DemoStations'] = ', '.join(f'{names.get(x, x)} ({x})' for x in picks)
+
+    # ---- environmental-group drop-one decomposition (spec addendum E; Results 3.2-3.3, Table S6)
+    dec = pd.read_csv(APR / 'results/consolidated_500m_decomp/scores/decomp_contrasts.csv')
+    dec = dec[dec.metric == 'RMSE']
+    gname = {'EP_NOMET': ('Met', 'Meteorology (22)'), 'EP_NOTER': ('Ter', 'Terrain (6)'),
+             'EP_NOTRAF': ('Traf', 'Traffic (3)'), 'EP_NOEMIS': ('Emis', 'Residential emissions (2)')}
+    drows = []
+    for arm in ('EP_NOEMIS', 'EP_NOMET', 'EP_NOTER', 'EP_NOTRAF'):
+        code, disp_ = gname[arm]
+        cells = [disp_]
+        for prot in ('block30', 'loso'):
+            for est, ec in (('daily', ''), ('station_year_mean', 'Mean')):
+                r = one(dec, arm=arm, protocol=prot, estimand=est)
+                put(f'D{code}{TCODE[prot]}{ec}', r)
+                num[f'D{code}{TCODE[prot]}{ec}Rmse'] = f'{r.rmse_candidate:.3f}'
+                e = mn(r.estimate)
+                if r.ci_low > 0 or r.ci_high < 0:
+                    e = f'\\textbf{{{e}}}'
+                cells.append(f'{e} [{mn(r.ci_low)}, {mn(r.ci_high)}]')
+        drows.append(' & '.join(cells) + ' \\\\')
+    (OUT / 'decomp_table.tex').write_text(
+        '\\begin{table}[htbp]\n\\centering\\scriptsize\\setlength{\\tabcolsep}{3pt}\n'
+        '\\caption{Drop-one decomposition of the environmental group at the 20 nonindustrial stations: E+P with one '
+        'environmental subgroup removed minus E+P, RMSE difference with paired 95\\% intervals (ng~m$^{-3}$). Positive '
+        'values mean that removing the subgroup increased error; bold marks supported differences. Correlated subgroups can '
+        'substitute for one another, so a small effect does not show that a subgroup is uninformative.}\n'
+        '\\label{tab:decomp}\n\\begin{tabular}{@{}lcccc@{}}\n\\toprule\n'
+        ' & \\multicolumn{2}{c}{30-day gaps} & \\multicolumn{2}{c}{Withheld station (LOSO)} \\\\\n'
+        '\\cmidrule(lr){2-3}\\cmidrule(l){4-5}\nSubgroup removed & Daily & Station-year mean & Daily & Station-year mean \\\\\n'
+        '\\midrule\n' + '\n'.join(drows) + '\n\\bottomrule\n\\end{tabular}\n\\end{table}\n')
 
     # ---- Rovinka (SK0076A) 2025 LOSO station-year mean: native E+P vs programme-matched (Discussion 4.1)
     frm = pd.read_csv(INPUTS / 'train_ready_permissive_500m.csv', parse_dates=['datum'])

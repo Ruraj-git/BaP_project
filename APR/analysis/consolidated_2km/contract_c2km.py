@@ -40,9 +40,15 @@ FEATURES = {
     "E_PM": ENV_CAL + PM6,                         # programme-matched: no NO2
     "E_NO2": ENV_CAL + NO2,                        # programme-matched: no PM
 }
+# Reserve decomposition (spec addendum E): E+P with one environmental subgroup removed.
+METEO = [f for f in METEO_CALENDAR if f not in CALENDAR]
+_GROUPS = {"MET": METEO, "TER": STATIC[:6], "TRAF": STATIC[6:9], "EMIS": STATIC[9:11]}
+for _g, _cols in _GROUPS.items():
+    FEATURES[f"EP_NO{_g}"] = [f for f in ENV_CAL if f not in _cols] + PROXIES
 INDICATOR_ARMS = {"E_P_M_I", "PM_I"}
 EXPECTED_COUNTS = {"PM": 11, "P": 14, "E": 38, "E_P": 47, "E_P_M": 50, "E_P_M_I": 50,
-                   "PM_I": 11, "E_PM": 44, "E_NO2": 41}
+                   "PM_I": 11, "E_PM": 44, "E_NO2": 41,
+                   "EP_NOMET": 25, "EP_NOTER": 41, "EP_NOTRAF": 44, "EP_NOEMIS": 45}
 MASK_SEED = 20260924
 ORIGIN = pd.Timestamp("2023-06-02")
 PRIMARY_YEARS = (2024, 2025)

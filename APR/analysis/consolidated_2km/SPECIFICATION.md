@@ -198,3 +198,15 @@ manuscript (APR/manuscript_v3); the complete 2 km ladder is reported as the
 support sensitivity. Reason stated in the paper (Methods 2.4, Discussion):
 500 m was the principal model's support during development, and the
 withheld-station contribution of environmental inputs depends on support.
+
+## Addendum E (2026-09-30): environmental-bundle decomposition (reserve)
+
+E+P with one environmental subgroup removed at a time: meteorology (22),
+terrain (6), traffic (3), residential emissions (2); 32 x 30-day + 21 LOSO folds
+each (212 fits, 500 m, reference settings). Scored against E+P. Kept as a
+reserve analysis for review; not part of the manuscript unless requested.
+Interpretation caveat fixed in advance: correlated groups can substitute for one
+another, so a small drop-one effect does not show that a group is uninformative.
+Status (2026-09-30): after the results, the author decided to include the
+decomposition in the manuscript (Methods 2.4, Results 3.2-3.3, Discussion 4.1,
+Table S6).

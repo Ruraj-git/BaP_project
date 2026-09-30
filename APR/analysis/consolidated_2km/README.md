@@ -16,3 +16,9 @@ support's run for the support contrast). Shared functions are imported from
 `../clean_rebuild/` (`model_contract.py`, `build_fit_preflight.py`,
 `fit_worker.py`, `scoring_core.py`). Manuscript tables, macros and figures:
 `../manuscript_v3/assets_v3.py`.
+
+Environmental-group decomposition (manuscript Table S6; SPECIFICATION.md addendum E):
+`contract_decomp.py` builds the drop-one manifest (E+P without meteorology, terrain, traffic or
+residential emissions; 212 fits), fitted and validated with the same worker and assembly, and scored
+against E+P by `score_decomp.py`. Derived table: `../../results/consolidated_500m_decomp/scores/`.
+
