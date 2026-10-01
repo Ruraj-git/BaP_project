@@ -222,3 +222,20 @@ daily RMSE and R2 (30-day, LOSO); LOSO station-year-mean RMSE, R2 and bias,
 overall and by observed stratum (> 1 vs <= 1 ng m-3); paired bootstrap as in
 Section 7. Reported whatever the result; intended for one Results sentence, a
 row in Table S3 and a supplementary figure in the layout of Fig. 5.
+
+## Addendum G (2026-10-01, before fitting): flexibility versus linear models
+
+Question: what does model flexibility (gradient boosting) add beyond a linear
+model with the same inputs, at three information levels?
+Linear counterparts: ridge regression (alpha 1, as PM ridge) on exactly the E and
+E+P feature lists, log(1+B[a]P) target, back-transform truncated at zero, no
+station indicators; pollutant concentrations log(1+x); missing values imputed
+with training medians plus one missing flag per pollutant group (PM, NO2);
+interactions log PM2.5 x day-of-year sine/cosine as in PM ridge; inputs
+standardised on training data. Folds: the 32 thirty-day blocks and 21 LOSO folds
+of the ladder, 500 m inputs (106 fits; fast, run directly).
+PM level: existing PM ridge vs PM+I (same PM, season and station-indicator
+information) on identical 30-day targets.
+Scores at the 20 nonindustrial stations: daily RMSE/R2 (30-day, LOSO) and
+station-year means; paired bootstrap trees minus linear (Section 7 scheme).
+Reported whatever the result.

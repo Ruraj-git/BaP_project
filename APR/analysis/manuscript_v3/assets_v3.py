@@ -437,7 +437,7 @@ def main():
     # ---- gap-task tables (E+P vs simple comparators, common bracketable)
     methods = [MID('E_P')] + list(BASE)
     disp = {MID('E_P'): 'E+P', **BASE}
-    order = [MID('E_P'), 'PM_RIDGE', 'HARMONIC', 'INTERP_LINEAR', 'INTERP_LOGLINEAR']
+    order = [MID('E_P'), 'PM_RIDGE', 'HARMONIC', 'INTERP_LINEAR']  # log-linear interpolation dropped (near-identical to linear)
     rows = []
     for m in order:
         r = summ_b = one(S, method=m, protocol='block30', estimand='daily', support='common_bracketable', scope='nonindustrial')
@@ -502,15 +502,20 @@ def main():
                 ('+NO$_2$ given E (E+P vs E+PM)', '+NO2 given E'), ('+PM given E (E+P vs E+NO$_2$)', '+PM given E'),
                 ('+M (E+P+M vs E+P)', '+M'), ('+I (E+P+M+I vs E+P+M)', '+I'),
                 ('+I at PM level (PM+I vs PM)', '+I (PM level)'), ('Bundle (E+P+M+I vs PM+I)', 'Bundle')]
-    dec_rows = [('+ meteorology', 'EP_NOMET'), ('+ terrain', 'EP_NOTER'), ('+ traffic', 'EP_NOTRAF'),
-                ('+ residential emissions', 'EP_NOEMIS')]
+    dec_rows = [('Meteorology', 'EP_NOMET'), ('Terrain', 'EP_NOTER'), ('Traffic', 'EP_NOTRAF'),
+                ('Residential emissions', 'EP_NOEMIS')]
     dec3 = pd.read_csv(APR / 'results/consolidated_500m_decomp/scores/decomp_contrasts.csv')
     dec3 = dec3[dec3.metric == 'RMSE']
     panels = [('block30', 'daily', '(a) 30-day gaps\ndaily values'), ('loso', 'daily', '(b) Withheld stations\ndaily values'),
               ('loso', 'station_year_mean', '(c) Withheld stations\nstation-year means')]
     gap = 1.0  # vertical space for the section heading
     ypos_dec = [len(fig_rows) + gap + k for k in range(len(dec_rows))]
-    fig, axes = plt.subplots(1, 3, figsize=(10.5, 6.2), sharey=True, sharex=True)
+    flex_rows = [('PM level (PM+I vs PM ridge)', 'PM+I vs PM ridge'), ('E', 'E (trees vs linear)'),
+                 ('E+P', 'E+P (trees vs linear)')]
+    lcon = pd.read_csv(APR / 'results/consolidated_500m_linear/linear_contrasts.csv')
+    lcon = lcon[lcon.metric == 'RMSE']
+    ypos_flex = [ypos_dec[-1] + 1 + gap + k for k in range(len(flex_rows))]
+    fig, axes = plt.subplots(1, 3, figsize=(10.5, 7.4), sharey=True, sharex=True)
     for ax, (prot, est, title) in zip(axes, panels):
         for y, (disp_, lab) in enumerate(fig_rows):
             for scope, color, shift, name in (('all_network', '#555555', -.14, 'All 21 stations'),
@@ -527,6 +532,15 @@ def main():
             r = one(dec3, arm=arm, protocol=prot, estimand=est)
             ax.errorbar(r.estimate, y, xerr=[[r.estimate - r.ci_low], [r.ci_high - r.estimate]], fmt='o', ms=4,
                         capsize=2.2, color='#0072B2')
+        # flexibility: RMSE reduction from trees relative to ridge with identical inputs (positive = trees better)
+        for y, (disp_, comp) in zip(ypos_flex, flex_rows):
+            x = lcon[(lcon.comparison == comp) & (lcon.protocol == prot) & (lcon.estimand == est)]
+            if x.empty:
+                continue
+            r = x.iloc[0]
+            v, lo_, hi_ = -r.estimate, -r.ci_high, -r.ci_low
+            ax.errorbar(v, y, xerr=[[v - lo_], [hi_ - v]], fmt='o', ms=4, capsize=2.2, color='#0072B2')
+        ax.axhline(ypos_dec[-1] + .5 + gap / 2, color='#999999', lw=.8)
         ax.axhline(len(fig_rows) - .5 + gap / 2, color='#999999', lw=.8)
         ax.axvline(0, color='grey', ls=':', lw=1)
         ax.set_title(title, fontsize=9.5, loc='left')
@@ -534,12 +548,17 @@ def main():
         ax.grid(axis='x', color='#eeeeee', lw=.6)
         for s_ in ('top', 'right'):
             ax.spines[s_].set_visible(False)
-    ticks = list(range(len(fig_rows))) + ypos_dec
-    axes[0].set_yticks(ticks, [r[0] for r in fig_rows] + [r[0] for r in dec_rows], fontsize=8.5)
-    axes[0].text(-0.02, len(fig_rows) - .5 + gap * .75, 'Within E (E+P vs E+P without subgroup)', transform=axes[0].get_yaxis_transform(),
+    ticks = list(range(len(fig_rows))) + ypos_dec + ypos_flex
+    axes[0].set_yticks(ticks, [r[0] for r in fig_rows] + [r[0] for r in dec_rows] + [r[0] for r in flex_rows], fontsize=8.5)
+    axes[0].text(-0.02, ypos_dec[-1] + .5 + gap * .75, 'Trees vs linear, same inputs', transform=axes[0].get_yaxis_transform(),
+                 ha='right', va='center', fontsize=8.5, style='italic')
+    axes[0].text(-0.02, len(fig_rows) - .5 + gap * .75, 'E+P vs E+P without subgroup', transform=axes[0].get_yaxis_transform(),
                  ha='right', va='center', fontsize=8.5, style='italic')
     axes[0].invert_yaxis()
-    axes[2].legend(loc='center right', bbox_to_anchor=(1.0, 0.42), fontsize=8, frameon=True, title='Legend',
+    # place the legend in panel (c)'s empty indicator rows (+I, PM-level +I, Bundle do not apply to withheld stations)
+    y0, y1 = axes[2].get_ylim()
+    frac = (y0 - 7.0) / (y0 - y1)  # inverted axis: fraction from bottom at row index 7
+    axes[2].legend(loc='center right', bbox_to_anchor=(1.0, frac), fontsize=8, frameon=True, title='Legend',
                    title_fontsize=8, edgecolor='#999999', fancybox=False)
     fig.tight_layout()
     fig.savefig(OUT / 'information_benefits.pdf')
@@ -556,20 +575,25 @@ def main():
     ann = ann[ann.protocol == 'loso']
     obs = ann[ann.method == MID('E_P')]
     order_st = obs.groupby('eoi')['observed'].mean().sort_values().index.tolist()
-    fig, axes = plt.subplots(2, 1, figsize=(9.5, 7.2), sharex=True, sharey=True)
+    ev5 = pd.read_csv(APR / 'results/consolidated_500m_einv/assembled/validated_predictions.csv', parse_dates=['datum'])
+    ev5 = ev5[(ev5.protocol == 'loso') & ev5.datum.dt.year.isin([2024, 2025])]
+    einv_ann = ev5.assign(year=ev5.datum.dt.year).groupby(['eoi', 'year'], as_index=False).agg(prediction=('prediction', 'mean'))
+    fig, axes = plt.subplots(2, 1, figsize=(9.5, 7.6), sharex=True, sharey=True)
     for year, ax in zip((2024, 2025), axes):
-        for arm, color, marker, off in (('E', COL['E'], '^', -.25), ('P', COL['P'], 's', -.08),
-                                        ('E_P', COL['E+P'], 'o', .10), ('Observed', COL['Observed'], 'D', .25)):
-            x = obs if arm == 'Observed' else ann[ann.method == MID(arm)]
-            x = x[x.year == year].set_index('eoi').loc[order_st]
+        for arm, color, marker, off, lab_ in (('E', COL['E'], '^', -.30, 'E'),
+                                              ('E_inv', '#D55E00', 'v', -.15, 'E (inverse weights)'),
+                                              ('P', COL['P'], 's', 0.0, 'P'), ('E_P', COL['E+P'], 'o', .15, 'E+P'),
+                                              ('Observed', COL['Observed'], 'D', .30, 'Observed')):
+            x = obs if arm == 'Observed' else (einv_ann if arm == 'E_inv' else ann[ann.method == MID(arm)])
+            x = x[x.year == year].set_index('eoi').reindex(order_st)
             ax.scatter(np.arange(len(order_st)) + off, x.observed if arm == 'Observed' else x.prediction, c=color,
-                       marker=marker, s=30, label=NAME.get(arm, arm), zorder=3)
+                       marker=marker, s=26, label=lab_, zorder=3)
         ax.set_title(str(year), loc='left')
         ax.set_ylabel('Station-year mean (ng m$^{-3}$)')
         k = order_st.index(IND)
         ax.axvspan(k - .45, k + .45, color='#eeeeee', zorder=0)
         ax.grid(axis='y', alpha=.2)
-    axes[0].legend(ncol=4, loc='upper left', fontsize=10)
+    axes[0].legend(ncol=5, loc='upper left', fontsize=9)
     axes[1].set_xticks(range(len(order_st)), [e + ('*' if e == IND else '') for e in order_st], rotation=55, ha='right', fontsize=9)
     axes[1].set_xlabel('Stations ordered by observed concentration; * industrial')
     fig.tight_layout()
@@ -710,35 +734,44 @@ def main():
     t_ = t_.replace('\\midrule\n\\multicolumn{10}{@{}l}{\\emph{Temporal stress tests',
                     '\n'.join(einv_rows) + '\n\\midrule\n\\multicolumn{10}{@{}l}{\\emph{Temporal stress tests', 1)
     (OUT / 'sensitivity_table.tex').write_text(t_)
-    ev = pd.read_csv(EV / 'assembled/validated_predictions.csv', parse_dates=['datum'])
-    ev = ev[(ev.protocol == 'loso') & (ev.datum.dt.year.isin([2024, 2025]))]
-    evm = ev.assign(year=ev.datum.dt.year).groupby(['eoi', 'year'], as_index=False).agg(prediction=('prediction', 'mean'))
-    annl = pd.read_csv(S5 / 'station_year_means.csv')
-    annl = annl[annl.protocol == 'loso']
-    obs_ = annl[annl.method == MID('E_P')]
-    order_ = obs_.groupby('eoi')['observed'].mean().sort_values().index.tolist()
-    fig, axes = plt.subplots(2, 1, figsize=(9.5, 7.2), sharex=True, sharey=True)
-    for year, ax in zip((2024, 2025), axes):
-        series = [('E (uniform)', annl[annl.method == MID('E')], '#E69F00', '^', -.27),
-                  ('E (inverse weights)', evm, '#D55E00', 'v', -.09),
-                  ('E+P', annl[annl.method == MID('E_P')], '#0072B2', 'o', .09)]
-        for lab_, df_, col_, mk_, off_ in series:
-            x = df_[df_.year == year].set_index('eoi').reindex(order_)
-            ax.scatter(np.arange(len(order_)) + off_, x.prediction, c=col_, marker=mk_, s=28, label=lab_, zorder=3)
-        x = obs_[obs_.year == year].set_index('eoi').reindex(order_)
-        ax.scatter(np.arange(len(order_)) + .27, x.observed, c='#222222', marker='D', s=28, label='Observed', zorder=4)
-        ax.set_title(str(year), loc='left')
-        ax.set_ylabel('Station-year mean (ng m$^{-3}$)')
-        k = order_.index(IND)
-        ax.axvspan(k - .45, k + .45, color='#eeeeee', zorder=0)
-        ax.grid(axis='y', alpha=.2)
-    axes[0].legend(ncol=4, loc='upper left', fontsize=9.5)
-    axes[1].set_xticks(range(len(order_)), [e + ('*' if e == IND else '') for e in order_], rotation=55, ha='right', fontsize=9)
-    axes[1].set_xlabel('Stations ordered by observed concentration; * industrial')
-    fig.tight_layout()
-    fig.savefig(OUT / 'station_means_weights.pdf')
-    fig.savefig(OUT / 'station_means_weights.png', dpi=200)
-    plt.close(fig)
+
+    # ---- model flexibility: trees vs ridge with identical inputs (spec addendum G; Results 3.5, Table S6)
+    LB = APR / 'results/consolidated_500m_linear'
+    ls_ = pd.read_csv(LB / 'linear_summary.csv')
+    lc_ = pd.read_csv(LB / 'linear_contrasts.csv')
+    lc_ = lc_[lc_.metric == 'RMSE']
+    comps = [('PM+I vs PM ridge', 'Pm', 'PM+I vs PM ridge'),
+             ('E (trees vs linear)', 'Env', 'E'),
+             ('E+P (trees vs linear)', 'EnvPol', 'E+P')]
+    lrows = []
+    for comp, code, disp_ in comps:
+        for prot in ('block30', 'loso'):
+            sub = ls_[(ls_.comparison == comp) & (ls_.protocol == prot)]
+            if sub.empty:
+                continue
+            g2 = lambda m, est: one(sub, model=m, estimand=est)
+            num[f'Lin{code}{TCODE[prot]}Rmse'] = f"{g2('linear', 'daily').RMSE:.3f}"
+            num[f'Lin{code}{TCODE[prot]}MeanRsq'] = mn(g2('linear', 'station_year_mean').agreement_R2, 2)
+            rd = one(lc_, comparison=comp, protocol=prot, estimand='daily')
+            rm = one(lc_, comparison=comp, protocol=prot, estimand='station_year_mean')
+            put(f'Flex{code}{TCODE[prot]}', rd, g2('linear', 'daily').RMSE)
+            put(f'Flex{code}{TCODE[prot]}Mean', rm)
+            lrows.append(' & '.join([disp_, TASK[prot], f"{g2('trees', 'daily').RMSE:.3f}", f"{g2('linear', 'daily').RMSE:.3f}",
+                                     tri(rd), mn(g2('trees', 'station_year_mean').agreement_R2, 2),
+                                     mn(g2('linear', 'station_year_mean').agreement_R2, 2), tri(rm)]) + ' \\\\')
+    (OUT / 'linear_table.tex').write_text(
+        '\\begin{table}[htbp]\n\\centering\\scriptsize\\setlength{\\tabcolsep}{2pt}\n'
+        '\\caption{Model flexibility at the 20 nonindustrial stations: gradient-boosted trees against ridge regression with '
+        'identical inputs, target and folds, 2024--2025. RMSE in ng~m$^{-3}$; differences (in daily and station-year-mean '
+        'RMSE) are trees minus ridge with paired '
+        '95\\% bootstrap intervals (main-text Section~2.6); supported differences are in bold. At the PM level, the '
+        'linear comparator is PM ridge (PM, seasonal terms and station indicators).}\n\\label{tab:linear}\n'
+        f'\\begin{{tabular}}{{@{{}}llrr{TRI}rr{TRI_END}@{{}}}}\n\\toprule\n'
+        ' & & \\multicolumn{5}{c}{Daily} & \\multicolumn{5}{c}{Station-year mean} \\\\\n'
+        '\\cmidrule(lr){3-7}\\cmidrule(l){8-12}\n'
+        'Inputs & Task & Trees & Ridge & \\multicolumn{3}{c}{Difference} & $R^2$ trees & $R^2$ ridge & '
+        '\\multicolumn{3}{c}{Difference} \\\\\n\\midrule\n' + '\n'.join(lrows) +
+        '\n\\bottomrule\n\\end{tabular}\n\\end{table}\n')
 
     # ---- Rovinka (SK0076A) 2025 LOSO station-year mean: native E+P vs programme-matched (Discussion 4.1)
     frm = pd.read_csv(INPUTS / 'train_ready_permissive_500m.csv', parse_dates=['datum'])
