@@ -22,3 +22,8 @@ Environmental-group decomposition (manuscript Table S6; SPECIFICATION.md addendu
 residential emissions; 212 fits), fitted and validated with the same worker and assembly, and scored
 against E+P by `score_decomp.py`. Derived table: `../../results/consolidated_500m_decomp/scores/`.
 
+Inverse-weighted environmental model (manuscript Section 3.3, Table S3, Fig. S2; SPECIFICATION.md addendum F):
+`contract_einv.py` builds the manifest (E with weights 1/(B[a]P+0.5); 53 fits), fitted and validated with the
+same worker and assembly, and scored against E and E+P by `score_einv.py`. Derived tables:
+`../../results/consolidated_500m_einv/scores/`.
+

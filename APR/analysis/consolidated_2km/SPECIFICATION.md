@@ -210,3 +210,15 @@ another, so a small drop-one effect does not show that a group is uninformative.
 Status (2026-09-30): after the results, the author decided to include the
 decomposition in the manuscript (Methods 2.4, Results 3.2-3.3, Discussion 4.1,
 Table S6).
+
+## Addendum F (2026-10-01, before fitting): inverse-weighted environmental model
+
+Question: can inverse weighting 1/(B[a]P+0.5) compensate for the missing level
+information of the environment-only model E at withheld stations, and at what
+cost? Fits: E (500 m, log target, all pollutant hours, native missing handling)
+with inverse weights; 32 x 30-day + 21 LOSO folds (53 fits).
+Scored at the 20 nonindustrial stations against E (uniform) and E+P (uniform):
+daily RMSE and R2 (30-day, LOSO); LOSO station-year-mean RMSE, R2 and bias,
+overall and by observed stratum (> 1 vs <= 1 ng m-3); paired bootstrap as in
+Section 7. Reported whatever the result; intended for one Results sentence, a
+row in Table S3 and a supplementary figure in the layout of Fig. 5.

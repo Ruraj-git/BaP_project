@@ -36,7 +36,8 @@ sensitivity. Code: `analysis/consolidated_2km/` (see its README and
 `SPECIFICATION.md`); manuscript tables, macros and figures: `analysis/manuscript_v3/assets_v3.py` (Fig. 1: `network_typology_map_v3.py`).
 Derived tables: `results/consolidated_500m/scores/` (primary) and
 `results/consolidated_2km/scores_v2/` (2 km, scored against 500 m). The drop-one decomposition of the environmental group is in
-`results/consolidated_500m_decomp/scores/` (release apr-v1.2).
+`results/consolidated_500m_decomp/scores/` (release apr-v1.2). The inverse-weighted environmental model is in
+`results/consolidated_500m_einv/scores/` (release apr-v1.3).
 
 Model names in the revised manuscript map to the earlier ones as follows:
 PM+I = PM-XGB, E+P+M+I = FULL-ID, E+P+M = M-AUX, E = G, E+P = G+P,
