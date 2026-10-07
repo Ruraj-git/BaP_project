@@ -313,7 +313,7 @@ def main():
         '\\begin{table}[htbp]\n\\centering\\scriptsize\\setlength{\\tabcolsep}{2pt}\n'
         '\\caption{Input-group RMSE contrasts, 2024--2025, candidate minus comparator with paired 95\\% bootstrap '
         'intervals (ng~m$^{-3}$; main-text Section~2.6); negative values favour the candidate; supported differences are in bold. Daily 30-day intervals resample stations and blocks; '
-        'all others resample stations. Model RMSEs are in main-text Table~5. Static support 500~m.}\n'
+        'all others resample stations. Model RMSEs are in main-text Table~4. Static support 500~m.}\n'
         f'\\label{{tab:contrasts}}\n\\begin{{tabular}}{{@{{}}ll{TRI}{TRI}{TRI_END}@{{}}}}\n\\toprule\n'
         ' & & \\multicolumn{6}{c}{Daily} & \\multicolumn{3}{c}{Station-year mean} \\\\\n'
         '\\cmidrule(lr){3-8}\\cmidrule(l){9-11}\n'
@@ -327,7 +327,7 @@ def main():
         return TRI_NA if x.empty else tri(x.iloc[0])
     main_rows = [('+E (E+P vs P)', '+E'), ('+P (E+P vs E)', '+P'), ('+NO$_2$ (P vs PM)', '+NO2'),
                  ('+NO$_2$ given E (E+P vs E+PM)', '+NO2 given E'), ('+PM given E (E+P vs E+NO$_2$)', '+PM given E'),
-                 ('+M (E+P+M vs E+P)', '+M'), ('+I (E+P+M+I vs E+P+M)', '+I'), ('+I at PM level (PM+I vs PM)', '+I (PM level)'),
+                 ('+M (E+P+M vs E+P)', '+M'), ('+I (E+P+M+I vs E+P+M)', '+I'), ('+I (PM+I vs PM)', '+I (PM level)'),
                  ('Bundle (E+P+M+I vs PM+I)', 'Bundle')]
     rows = [' & '.join([d, cell(l, 'block30', 'daily'), cell(l, 'loso', 'daily'), cell(l, 'loso', 'station_year_mean')]) + ' \\\\'
             for d, l in main_rows]
@@ -348,6 +348,8 @@ def main():
     # ---- supplementary sensitivity table
     rows = []
     for code, lab, disp in SENS:
+        if lab == 'Weights':
+            continue  # weighting contrasts are in the main-text weighting table
         c = [disp]
         for prot in ('block30', 'loso'):
             c.append(tri(pair(P, lab, prot, 'nonindustrial', 'daily')))
@@ -377,8 +379,9 @@ def main():
         '500~m static cells. Programme-matched predictions use E+P, E+PM, E+NO$_2$ or E according to the '
         'pollutant groups available on each target day, and equal E+P on complete-pollutant days. Stress tests withhold each primary year, each complete '
         'season-year (incomplete boundary seasons excluded) or each calendar season across all years; their intervals '
-        'do not quantify variability over other years or seasons. The E block compares the environmental model fitted '
-        'with inverse weights against uniformly weighted E and against E+P.}\n'
+        'do not quantify variability over other years or seasons. The weighting block gives E+P and E with inverse '
+        'minus uniform weights (levels in main-text Table~5); its bias rows are differences in station-year-mean bias '
+        '(prediction minus observation), where negative values mean lower predictions.}\n'
         f'\\label{{tab:sensitivity}}\n\\begin{{tabular}}{{@{{}}l{TRI}{TRI}{TRI_END}@{{}}}}\n\\toprule\n'
         ' & \\multicolumn{3}{c}{30-day gaps} & \\multicolumn{6}{c}{Withheld stations (LOSO)} \\\\\n'
         '\\cmidrule(lr){2-4}\\cmidrule(l){5-10}\n'
@@ -448,14 +451,21 @@ def main():
         'fitted inside each withholding fold. Units: ng~m$^{-3}$.}\n\\label{tab:longgap}\n'
         '\\begin{tabular}{lrrrr}\n\\toprule\nMethod & n & RMSE & MAE & Bias \\\\\n\\midrule\n'
         + '\n'.join(rows) + '\n\\bottomrule\n\\end{tabular}\n\\end{table}\n')
+    fr_ = pd.read_csv(INPUTS / 'train_ready_permissive_500m.csv', parse_dates=['datum'])
+    prim_ = fr_[fr_.datum.dt.year.isin([2024, 2025])]
+    pop_mean = {'all_network': prim_.bap.mean(), 'nonindustrial': prim_[prim_.eoi != IND].bap.mean()}
     rows = []
     for m in order:
         c = [disp[m]]
         for prot_, est, sup, d in (('block30', 'daily', 'common_bracketable', 3),
                                    ('dispersed_mod9', 'daily', 'common_bracketable', 3),
-                                   ('dispersed_mod9', 'reconstructed_mean', 'common_bracketable_replacements', 4)):
+                                   ('dispersed_mod9', 'reconstructed_mean', 'common_bracketable_replacements', 3)):
             for scope in ('all_network', 'nonindustrial'):
-                c.append(f"{one(S, method=m, protocol=prot_, estimand=est, support=sup, scope=scope).RMSE:.{d}f}")
+                r_ = one(S, method=m, protocol=prot_, estimand=est, support=sup, scope=scope).RMSE
+                if est == 'reconstructed_mean':  # station-year mean after filling: RMSE and share of the observed mean
+                    c.append(f"{r_:.{d}f} ({100 * r_ / pop_mean[scope]:.1f}\\%)")
+                else:
+                    c.append(f"{r_:.{d}f}")
         rows.append(' & '.join(c) + ' \\\\')
     nd = one(S, method=MID('E_P'), protocol='dispersed_mod9', estimand='daily', support='common_bracketable', scope='all_network').n
     nn = one(S, method=MID('E_P'), protocol='dispersed_mod9', estimand='daily', support='common_bracketable', scope='nonindustrial').n
@@ -463,35 +473,42 @@ def main():
     bn = one(S, method=MID('E_P'), protocol='block30', estimand='daily', support='common_bracketable', scope='nonindustrial').n
     (OUT / 'gap_table.tex').write_text(
         '\\begin{table}[htbp]\n\\centering\\small\\setlength{\\tabcolsep}{4pt}\n\\caption{E+P and simple comparators '
-        'on identical bracketable targets, 2024--2025 (RMSE, ng~m$^{-3}$). 30-day gaps: '
+        'on identical bracketable targets, 2024--2025: RMSE (ng~m$^{-3}$). 30-day gaps: '
         f'{int(bd)} daily values ({int(bn)} nonindustrial); dispersed gaps: {int(nd)} ({int(nn)} nonindustrial). '
-        'Reconstructed means use 378 station-year/fold reconstructions (360 nonindustrial), each replacing only '
-        'that fold\'s bracketable withheld dates. Model comparators are fitted inside each fold.}\n\\label{tab:gap}\n'
+        'The reconstructed station-year mean (Section~\\ref{sec:validation}; 378 station-year/fold reconstructions, '
+        '360 nonindustrial) combines retained observations with filled values over all sampled dates; the percentage '
+        'relates its RMSE to the observed mean concentration. Model comparators are fitted inside each fold.}\n\\label{tab:gap}\n'
         '\\begin{tabular}{@{}lrrrrrr@{}}\n\\toprule\n'
-        ' & \\multicolumn{2}{c}{30-day gaps, daily} & \\multicolumn{2}{c}{Dispersed, daily} & '
-        '\\multicolumn{2}{c}{Dispersed, reconstructed mean} \\\\\n'
+        ' & \\multicolumn{2}{c}{30-day gaps} & \\multicolumn{2}{c}{Dispersed gaps} & '
+        '\\multicolumn{2}{c}{Dispersed gaps} \\\\\n'
+        ' & \\multicolumn{2}{c}{daily values} & \\multicolumn{2}{c}{daily values} & '
+        '\\multicolumn{2}{c}{reconstructed station-year mean} \\\\\n'
         '\\cmidrule(lr){2-3}\\cmidrule(lr){4-5}\\cmidrule(l){6-7}\nMethod & All & Nonind. & All & Nonind. & All & Nonind. \\\\\n'
         '\\midrule\n' + '\n'.join(rows) + '\n\\bottomrule\n\\end{tabular}\n\\end{table}\n')
     rows = []
     for scope, sd in (('all_network', 'All stations'), ('nonindustrial', 'Nonindustrial')):
         for m in order[1:]:
-            c = [sd, BASE[m]]
-            for est in ('daily', 'reconstructed_mean'):
-                r = pair(P, 'Gap vs simple', 'dispersed_mod9', scope, est, method_b=m)
-                c.append(tri(r, 4))
+            c = [sd, BASE[m],
+                 tri(pair(P, 'Gap vs simple', 'block30', scope, 'daily', method_b=m), 3),
+                 tri(pair(P, 'Gap vs simple', 'dispersed_mod9', scope, 'daily', method_b=m), 3),
+                 tri(pair(P, 'Gap vs simple', 'dispersed_mod9', scope, 'reconstructed_mean', method_b=m), 4)]
             rows.append(' & '.join(c) + ' \\\\')
     (OUT / 'dispersed_intervals.tex').write_text(
-        '\\begin{table}[htbp]\n\\centering\\footnotesize\\setlength{\\tabcolsep}{4pt}\n\\caption{Complete '
-        'dispersed-gap RMSE contrasts: E+P minus each comparator, with paired station-cluster 95\\% bootstrap intervals '
-        f'(ng~m$^{{-3}}$; main-text Section~2.6). Negative differences favour E+P; supported differences are in bold. Daily scores use {int(nd)} dates ({int(nn)} nonindustrial); '
-        'reconstructed means use 378 station-year/fold cases (360 nonindustrial). Targets are identical within each '
-        f'contrast.}}\n\\label{{tab:dispersedintervals}}\n\\begin{{tabular}}{{ll{TRI}{TRI_END}}}\n\\toprule\n'
-        'Population & Comparator & \\multicolumn{3}{c}{Daily} & \\multicolumn{3}{c}{Reconstructed mean} \\\\\n\\midrule\n'
+        '\\begin{table}[htbp]\n\\centering\\scriptsize\\setlength{\\tabcolsep}{2pt}\n\\caption{E+P minus each '
+        'simple comparator on identical bracketable targets, RMSE difference with paired 95\\% bootstrap intervals '
+        '(ng~m$^{-3}$; main-text Section~2.6; station~$\\times$~block resampling for 30-day gaps, station clusters '
+        'otherwise). Negative differences favour E+P; supported differences are in bold. RMSEs are in main-text '
+        f'Table~6. Targets: 30-day gaps {int(bd)} ({int(bn)} nonindustrial); dispersed gaps {int(nd)} ({int(nn)}); '
+        'reconstructed means 378 station-year/fold cases (360).}\n\\label{tab:dispersedintervals}\n'
+        f'\\begin{{tabular}}{{@{{}}ll{TRI}{TRI}{TRI_END}@{{}}}}\n\\toprule\n'
+        ' & & \\multicolumn{3}{c}{30-day gaps} & \\multicolumn{6}{c}{Dispersed gaps} \\\\\n'
+        '\\cmidrule(lr){3-5}\\cmidrule(l){6-11}\n'
+        'Population & Comparator & \\multicolumn{3}{c}{Daily} & \\multicolumn{3}{c}{Daily} & '
+        '\\multicolumn{3}{c}{Reconstructed mean} \\\\\n\\midrule\n'
         + '\n'.join(rows) + '\n\\bottomrule\n\\end{tabular}\n\\end{table}\n')
 
     # ---- reconstructed-mean error as a share of the nonindustrial mean (Results 3.4)
-    fr_ = pd.read_csv(INPUTS / 'train_ready_permissive_500m.csv', parse_dates=['datum'])
-    non_mean = fr_[fr_.datum.dt.year.isin([2024, 2025]) & (fr_.eoi != IND)].bap.mean()
+    non_mean = pop_mean['nonindustrial']
     for m, k in ((MID('E_P'), 'RecoveryPctEP'), ('INTERP_LINEAR', 'RecoveryPctLin')):
         r = one(S, method=m, protocol='dispersed_mod9', estimand='reconstructed_mean',
                 support='common_bracketable_replacements', scope='nonindustrial').RMSE
@@ -501,7 +518,7 @@ def main():
     fig_rows = [('+NO$_2$ (P vs PM)', '+NO2'), ('+E (E+P vs P)', '+E'), ('+P (E+P vs E)', '+P'),
                 ('+NO$_2$ given E (E+P vs E+PM)', '+NO2 given E'), ('+PM given E (E+P vs E+NO$_2$)', '+PM given E'),
                 ('+M (E+P+M vs E+P)', '+M'), ('+I (E+P+M+I vs E+P+M)', '+I'),
-                ('+I at PM level (PM+I vs PM)', '+I (PM level)'), ('Bundle (E+P+M+I vs PM+I)', 'Bundle')]
+                ('+I (PM+I vs PM)', '+I (PM level)'), ('Bundle (E+P+M+I vs PM+I)', 'Bundle')]
     dec_rows = [('Meteorology', 'EP_NOMET'), ('Terrain', 'EP_NOTER'), ('Traffic', 'EP_NOTRAF'),
                 ('Residential emissions', 'EP_NOEMIS')]
     dec3 = pd.read_csv(APR / 'results/consolidated_500m_decomp/scores/decomp_contrasts.csv')
@@ -510,8 +527,8 @@ def main():
               ('loso', 'station_year_mean', '(c) Withheld stations\nstation-year means')]
     gap = 1.0  # vertical space for the section heading
     ypos_dec = [len(fig_rows) + gap + k for k in range(len(dec_rows))]
-    flex_rows = [('PM level (PM+I vs PM ridge)', 'PM+I vs PM ridge'), ('E', 'E (trees vs linear)'),
-                 ('E+P', 'E+P (trees vs linear)')]
+    flex_rows = [('PM+I vs PM ridge', 'PM+I vs PM ridge'), ('E vs ridge E', 'E (trees vs linear)'),
+                 ('E+P vs ridge E+P', 'E+P (trees vs linear)')]
     lcon = pd.read_csv(APR / 'results/consolidated_500m_linear/linear_contrasts.csv')
     lcon = lcon[lcon.metric == 'RMSE']
     ypos_flex = [ypos_dec[-1] + 1 + gap + k for k in range(len(flex_rows))]
@@ -550,7 +567,7 @@ def main():
             ax.spines[s_].set_visible(False)
     ticks = list(range(len(fig_rows))) + ypos_dec + ypos_flex
     axes[0].set_yticks(ticks, [r[0] for r in fig_rows] + [r[0] for r in dec_rows] + [r[0] for r in flex_rows], fontsize=8.5)
-    axes[0].text(-0.02, ypos_dec[-1] + .5 + gap * .75, 'Trees vs linear, same inputs', transform=axes[0].get_yaxis_transform(),
+    axes[0].text(-0.02, ypos_dec[-1] + .5 + gap * .75, 'Trees vs ridge regression, same inputs', transform=axes[0].get_yaxis_transform(),
                  ha='right', va='center', fontsize=8.5, style='italic')
     axes[0].text(-0.02, len(fig_rows) - .5 + gap * .75, 'E+P vs E+P without subgroup', transform=axes[0].get_yaxis_transform(),
                  ha='right', va='center', fontsize=8.5, style='italic')
@@ -730,10 +747,107 @@ def main():
         cells = [disp_] + [tri(one(ec, contrast=con, protocol=pr, estimand=est))
                            for pr, est in (('block30', 'daily'), ('loso', 'daily'), ('loso', 'station_year_mean'))]
         einv_rows.append(' & '.join(cells) + ' \\\\')
+
+    # ---- weighting choice at withheld stations (main-text table): uniform vs inverse weights for E+P and E
+    ymw = pd.read_csv(S5 / 'station_year_means.csv')
+    ymw = ymw[(ymw.protocol == 'loso') & (ymw.eoi != IND)]
+    WINV = 'inverse_1_over_bap_plus_0_5'
+    sy = {('E_P', 'uni'): ymw[ymw.method == MID('E_P')], ('E_P', 'inv'): ymw[ymw.method == MID('E_P', w=WINV)],
+          ('E', 'uni'): ymw[ymw.method == MID('E')]}
+    evd = pd.read_csv(EV / 'assembled/validated_predictions.csv', parse_dates=['datum'])
+    evd = evd[(evd.protocol == 'loso') & evd.datum.dt.year.isin([2024, 2025]) & (evd.eoi != IND)]
+    evw = evd.assign(year=evd.datum.dt.year).groupby(['eoi', 'year'], as_index=False).agg(prediction=('prediction', 'mean'))
+    a5w = pd.read_csv(A5, parse_dates=['datum'])
+    a5w = a5w[(a5w.protocol == 'loso') & a5w.datum.dt.year.isin([2024, 2025]) & (a5w.eoi != IND) & (a5w.target == 'log1p')
+              & (a5w.augment == 'none') & (a5w.input_variant == 'permissive')]
+    dly = {('E_P', 'uni'): a5w[(a5w.arm == 'E_P') & (a5w.weighting == 'uniform')],
+           ('E_P', 'inv'): a5w[(a5w.arm == 'E_P') & (a5w.weighting == WINV)],
+           ('E', 'uni'): a5w[(a5w.arm == 'E') & (a5w.weighting == 'uniform')], ('E', 'inv'): evd}
+    dly = {k: v[KEYS + ['observed', 'prediction']].sort_values(KEYS).reset_index(drop=True) for k, v in dly.items()}
+    dstat = {}
+    for k, v in dly.items():
+        assert len(v) == 4852 and v[KEYS].equals(dly[('E', 'uni')][KEYS]), k
+        e = v.prediction - v.observed
+        dstat[k] = dict(rmse=np.sqrt((e ** 2).mean()), bias=e.mean(),
+                        r2=1 - (e ** 2).sum() / ((v.observed - v.observed.mean()) ** 2).sum())
+    ref = sy[('E', 'uni')][['eoi', 'year', 'observed', 'stratum']]
+    sy[('E', 'inv')] = ref.merge(evw, on=['eoi', 'year'], how='left', validate='1:1')
+    for k, v in sy.items():
+        assert len(v) == 40 and v.prediction.notna().all() and (v.stratum.value_counts() == 20).all(), k
+        assert v.set_index(['eoi', 'year']).observed.sort_index().equals(ref.set_index(['eoi', 'year']).observed.sort_index())
+    for k, ref_rmse in {('E_P', 'uni'): summ(S, MID('E_P'), 'loso', 'nonindustrial').RMSE,
+                        ('E_P', 'inv'): summ(S, MID('E_P', w=WINV), 'loso', 'nonindustrial').RMSE,
+                        ('E', 'uni'): summ(S, MID('E'), 'loso', 'nonindustrial').RMSE,
+                        ('E', 'inv'): g_('E_inv', 'loso', 'daily').RMSE}.items():
+        assert abs(dstat[k]['rmse'] - ref_rmse) < 1e-9, k  # daily scores agree with the scoring runs
+    WCODE = {'E_P': 'EnvPol', 'E': 'Env'}
+
+    def sy_stats(v):
+        e = v.prediction - v.observed
+        r2 = 1 - (e ** 2).sum() / ((v.observed - v.observed.mean()) ** 2).sum()
+        return dict(rmse=np.sqrt((e ** 2).mean()), r2=r2, hi=e[v.stratum == 'higher'].mean(),
+                    lo=e[v.stratum == 'lower'].mean())
+
+    sgn = lambda x: ('+' if float(f'{x:.2f}') > 0 else '') + mn(x, 2)
+    sup_ = lambda r: bool(r.ci_low > 0 or r.ci_high < 0)
+    bold = lambda t, flag: f'\\nb{{{t}}}' if flag else t
+    wrows, s3w = [], []
+    for arm in ('E_P', 'E'):
+        st_ = {k: sy_stats(sy[(arm, k)]) for k in ('uni', 'inv')}
+        a_, b_ = sy[(arm, 'inv')], sy[(arm, 'uni')]
+        if arm == 'E_P':
+            dd, dm = pair(P, 'Weights', 'loso', 'nonindustrial', 'daily'), pair(P, 'Weights', 'loso', 'nonindustrial', 'station_year_mean')
+        else:
+            dd, dm = one(ec, contrast='E_inv_minus_E', protocol='loso', estimand='daily'), one(ec, contrast='E_inv_minus_E', protocol='loso', estimand='station_year_mean')
+        put(f'W{WCODE[arm]}DiffDaily', dd)
+        put(f'W{WCODE[arm]}DiffMean', dm)
+        dbias = pd.Series(paired(dly[(arm, 'inv')], dly[(arm, 'uni')], KEYS, 'station', 'bias'))
+        put(f'W{WCODE[arm]}DiffDailyBias', dbias)
+        flag = {'daily': sup_(dd), 'rmse': sup_(dm), 'dbias': sup_(dbias)}
+        for lev, q in (('higher', 'hi'), ('lower', 'lo')):
+            r = pd.Series(paired(a_[a_.stratum == lev], b_[b_.stratum == lev], ['eoi', 'year'], 'station', 'bias'))
+            put(f'W{WCODE[arm]}Diff{q.capitalize()}', r)
+            flag[q] = sup_(r)
+            flag['r_' + q] = r
+        for k, lab in (('uni', 'uniform'), ('inv', 'inverse')):
+            s_ = st_[k]
+            fl = flag if k == 'inv' else {q: False for q in ('daily', 'rmse', 'dbias', 'hi', 'lo')}  # bold marks supported inverse-minus-uniform differences
+            d_ = dstat[(arm, k)]
+            cells = [bold(f'{d_["rmse"]:.3f}', fl['daily']), mn(d_['r2'], 2), bold(sgn(d_['bias']), fl['dbias']),
+                     bold(f'{s_["rmse"]:.3f}', fl['rmse']), mn(s_['r2'], 2), bold(sgn(s_['hi']), fl['hi']), bold(sgn(s_['lo']), fl['lo'])]
+            wrows.append(f'{NAME[arm]} & {lab} & ' + ' & '.join(cells) + ' \\\\')
+            for q in ('rmse', 'r2', 'hi', 'lo'):
+                num[f'W{WCODE[arm]}{k.capitalize()}{dict(rmse="Rmse", r2="Rsq", hi="Hi", lo="Lo")[q]}'] = (f'{s_[q]:.3f}' if q == 'rmse' else
+                                                                         mn(s_[q], 2) if q == 'r2' else sgn(s_[q]))
+            num[f'W{WCODE[arm]}{k.capitalize()}Daily'] = f'{d_["rmse"]:.3f}'
+            num[f'W{WCODE[arm]}{k.capitalize()}DailyRsq'] = mn(d_['r2'], 2)
+            num[f'W{WCODE[arm]}{k.capitalize()}DailyBias'] = sgn(d_['bias'])
+        if arm == 'E_P':
+            wrows.append('\\midrule')
+        # Table S3 weighting block: inverse minus uniform with paired intervals (levels in main-text Table 5)
+        db = pair(P, 'Weights', 'block30', 'nonindustrial', 'daily') if arm == 'E_P' else \
+            one(ec, contrast='E_inv_minus_E', protocol='block30', estimand='daily')
+        s3w.append(f'{NAME[arm]} & {tri(db)} & {tri(dd)} & {tri(dm)} \\\\')
+        s3w.append(f'\\quad bias, all days & {TRI_NA} & {tri(dbias)} & {TRI_NA} \\\\')
+        for q, lev in (('hi', '$>1$'), ('lo', '$\\leq1$')):
+            s3w.append(f'\\quad bias, station-years {lev}~ng~m$^{{-3}}$ & {TRI_NA} & {TRI_NA} & {tri(flag["r_" + q])} \\\\')
     t_ = (OUT / 'sensitivity_table.tex').read_text()
     t_ = t_.replace('\\midrule\n\\multicolumn{10}{@{}l}{\\emph{Temporal stress tests',
-                    '\n'.join(einv_rows) + '\n\\midrule\n\\multicolumn{10}{@{}l}{\\emph{Temporal stress tests', 1)
+                    '\\midrule\n\\multicolumn{10}{@{}l}{\\emph{Inverse minus uniform weights}} \\\\\n' + '\n'.join(s3w)
+                    + '\n\\midrule\n\\multicolumn{10}{@{}l}{\\emph{Temporal stress tests', 1)
+    assert 'Inverse minus uniform weights' in t_
     (OUT / 'sensitivity_table.tex').write_text(t_)
+    (OUT / 'weighting_table.tex').write_text(
+        '\\begin{table}[htbp]\n\\centering\\small\\setlength{\\tabcolsep}{3pt}\n'
+        '\\caption{Uniform and inverse weights, $1/(\\mathrm{B[a]P}+0.5)$, at withheld stations (LOSO), 20 nonindustrial '
+        'stations, 2024--2025 (ng~m$^{-3}$); 4852 daily values and 40 station-years. Bias is prediction minus observation; '
+        'station-year-mean bias is averaged over the 20 station-years above and the 20 at or below 1~ng~m$^{-3}$. Inverse-weight values in '
+        'bold differ from uniform weights with a paired 95\\% bootstrap interval excluding zero (Section~\\ref{sec:scoring}); '
+        'the differences and their intervals are in Supplementary Table~S3.}\n'
+        '\\label{tab:weighting}\n\\begin{tabular}{@{}llrrrrrrr@{}}\n\\toprule\n'
+        ' & & \\multicolumn{3}{c}{Daily} & \\multicolumn{4}{c}{Station-year mean} \\\\\n\\cmidrule(lr){3-5}\\cmidrule(l){6-9}\n'
+        'Model & Weights & RMSE & $R^2$ & Bias & RMSE & $R^2$ & Bias $>1$ & Bias $\\leq1$ \\\\\n\\midrule\n'
+        + '\n'.join(wrows) + '\n\\bottomrule\n\\end{tabular}\n\\end{table}\n')
 
     # ---- model flexibility: trees vs ridge with identical inputs (spec addendum G; Results 3.5, Table S6)
     LB = APR / 'results/consolidated_500m_linear'
@@ -788,6 +902,17 @@ def main():
     incm = ~prim[['pm10_mean', 'pm25_mean', 'no2_mean']].notna().all(axis=1)
     assert int(incm.sum()) == int(num['IncompleteLosoNonN'])
     num['IncompleteTwoStations'] = str(int((incm & prim.eoi.isin(['SK0006R', 'SK0076A'])).sum()))
+    # sampling intervals and dispersed-fold coverage (Methods 2.5, Supplementary S5), all 21 stations, 2024-2025
+    smp = frm[frm.datum.dt.year.isin([2024, 2025])].sort_values(['eoi', 'datum'])
+    gap_d = smp.groupby('eoi').datum.diff().dt.days.dropna()
+    for k, lab in ((1, 'One'), (2, 'Two'), (3, 'Three')):
+        num[f'Interval{lab}Pct'] = f'{100 * gap_d.eq(k).mean():.0f}'
+    num['IntervalLongerPct'] = f'{100 * gap_d.gt(3).mean():.0f}'
+    fold_ = (smp.datum - frm.datum.min()).dt.days % 9
+    nf = smp.assign(f=fold_, y=smp.datum.dt.year).groupby(['eoi', 'y']).f.nunique()
+    num['AllFoldsStationYears'] = str(int(nf.eq(9).sum()))
+    num['StationYearsTotal'] = str(len(nf))
+    num['MinFoldsStationYear'] = str(int(nf.min()))
 
     (OUT / 'numbers.tex').write_text('% Generated by APR/analysis/manuscript_v3/assets_v3.py\n' +
                                      ''.join(f'\\newcommand{{\\{k}}}{{{v}}}\n' for k, v in num.items()))
