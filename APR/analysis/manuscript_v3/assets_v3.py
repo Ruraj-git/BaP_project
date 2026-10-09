@@ -258,8 +258,8 @@ def main():
            for arm in ('PM', 'P', 'E', 'E_P', 'E_P_M', 'E_PM', 'E_NO2')}
     lo_arm, hi_arm = min(ind, key=ind.get), max(ind, key=ind.get)
     assert (lo_arm, hi_arm) == ('PM', 'E_P')
-    num['IndLosoMin'], num['IndLosoMax'] = f'{ind[lo_arm]:.2f}', f'{ind[hi_arm]:.2f}'
-    num['IndLosoEnv'] = f"{ind['E']:.2f}"
+    num['IndLosoMin'], num['IndLosoMax'] = f'{ind[lo_arm]:.3f}', f'{ind[hi_arm]:.3f}'
+    num['IndLosoEnv'] = f"{ind['E']:.3f}"
 
     # ---- stress tests (E+P vs E)
     for prot, tc in (('year_out', 'Year'), ('season_year_out', 'SeasonYear'), ('calendar_season_out', 'CalSeason')):
